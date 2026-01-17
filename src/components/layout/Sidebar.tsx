@@ -11,6 +11,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useTenant } from '@/hooks/useTenant';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
@@ -26,6 +27,7 @@ export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { data: tenant } = useTenant();
 
   const handleLogout = async () => {
     await signOut();
@@ -34,10 +36,17 @@ export function Sidebar() {
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-sidebar flex flex-col z-50">
-      {/* Logo */}
+      {/* Logo - Shows tenant name if available */}
       <div className="p-6 border-b border-sidebar-border">
         <h1 className="text-2xl font-bold text-sidebar-foreground">
-          <span className="text-sidebar-primary">CRM</span>Pro
+          {tenant?.logoUrl ? (
+            <img src={tenant.logoUrl} alt={tenant.name} className="h-8" />
+          ) : (
+            <>
+              <span className="text-sidebar-primary">{tenant?.name?.split(' ')[0] || 'CRM'}</span>
+              {tenant?.name?.split(' ').slice(1).join(' ') || 'Pro'}
+            </>
+          )}
         </h1>
       </div>
 

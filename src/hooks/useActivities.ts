@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Activity, ActivityType } from '@/types/crm';
 import { toast } from '@/hooks/use-toast';
+import { getUserTenantId } from '@/hooks/useTenant';
 
 interface ActivityRow {
   id: string;
@@ -10,6 +11,7 @@ interface ActivityRow {
   description: string;
   created_at: string;
   created_by: string;
+  tenant_id: string | null;
 }
 
 const mapActivityFromDb = (row: ActivityRow): Activity => ({
@@ -54,6 +56,9 @@ export function useCreateActivity() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
+      const tenantId = await getUserTenantId();
+      if (!tenantId) throw new Error('Tenant não encontrado');
+
       const { data, error } = await supabase
         .from('activities')
         .insert({
@@ -61,6 +66,7 @@ export function useCreateActivity() {
           type: activity.type,
           description: activity.description,
           created_by: user.id,
+          tenant_id: tenantId,
         })
         .select()
         .single();

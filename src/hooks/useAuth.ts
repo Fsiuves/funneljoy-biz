@@ -32,7 +32,7 @@ export function useAuth() {
     return { error };
   };
 
-  const signUp = async (email: string, password: string, name?: string) => {
+  const signUp = async (email: string, password: string, name?: string, companyName?: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
     const { error, data } = await supabase.auth.signUp({
@@ -44,13 +44,38 @@ export function useAuth() {
       },
     });
     
-    // Create profile after signup
+    // Create tenant and profile after signup
     if (!error && data.user) {
-      await supabase.from('profiles').insert({
+      // Create tenant first
+      const slug = companyName 
+        ? companyName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-')
+        : `empresa-${Date.now()}`;
+      
+      const { data: tenant, error: tenantError } = await supabase
+        .from('tenants')
+        .insert({
+          name: companyName || 'Minha Empresa',
+          slug: slug,
+        })
+        .select()
+        .single();
+      
+      if (tenantError) {
+        console.error('Error creating tenant:', tenantError);
+        return { error: tenantError };
+      }
+
+      // Create profile with tenant_id
+      const { error: profileError } = await supabase.from('profiles').insert({
         id: data.user.id,
         email: email,
         name: name || null,
+        tenant_id: tenant.id,
       });
+
+      if (profileError) {
+        console.error('Error creating profile:', profileError);
+      }
     }
     
     return { error };

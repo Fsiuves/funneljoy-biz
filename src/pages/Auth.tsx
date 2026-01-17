@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { Mail, Lock, User, Loader2 } from 'lucide-react';
+import { Mail, Lock, User, Building2, Loader2 } from 'lucide-react';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [companyName, setCompanyName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
@@ -39,7 +40,7 @@ export default function Auth() {
           return;
         }
         
-        const { error } = await signUp(email, password, name);
+        const { error } = await signUp(email, password, name, companyName);
         if (error) {
           if (error.message.includes('already registered')) {
             setError('Este email já está cadastrado');
@@ -70,7 +71,7 @@ export default function Auth() {
           </div>
           <h1 className="text-2xl font-bold text-foreground">CRM White Label</h1>
           <p className="text-muted-foreground mt-2">
-            {isLogin ? 'Entre na sua conta' : 'Crie sua conta'}
+            {isLogin ? 'Entre na sua conta' : 'Crie sua conta e empresa'}
           </p>
         </div>
 
@@ -78,21 +79,40 @@ export default function Auth() {
         <div className="bg-card rounded-2xl shadow-card p-8 animate-fade-in">
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Nome
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="input-field pl-10"
-                    placeholder="Seu nome"
-                  />
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    Nome da Empresa *
+                  </label>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <input
+                      type="text"
+                      required
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      className="input-field pl-10"
+                      placeholder="Sua empresa"
+                    />
+                  </div>
                 </div>
-              </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    Seu Nome
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="input-field pl-10"
+                      placeholder="Seu nome"
+                    />
+                  </div>
+                </div>
+              </>
             )}
 
             <div>
