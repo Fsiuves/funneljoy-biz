@@ -1,18 +1,20 @@
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
-import { mockLeads } from '@/data/mockData';
-import { Calendar, Clock, Phone, Mail, CheckCircle } from 'lucide-react';
+import { useLeads } from '@/hooks/useLeads';
+import { Calendar, Clock, Phone, Mail, CheckCircle, Loader2 } from 'lucide-react';
 import { format, isToday, isTomorrow, isPast, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Lead } from '@/types/crm';
 
 export default function FollowUps() {
-  const leadsWithFollowUp = mockLeads.filter(lead => lead.nextFollowUp);
+  const { data: leads = [], isLoading } = useLeads();
+  const leadsWithFollowUp = leads.filter(lead => lead.nextFollowUp);
 
   const categorizeFollowUps = () => {
-    const today: typeof mockLeads = [];
-    const tomorrow: typeof mockLeads = [];
-    const thisWeek: typeof mockLeads = [];
-    const overdue: typeof mockLeads = [];
+    const today: Lead[] = [];
+    const tomorrow: Lead[] = [];
+    const thisWeek: Lead[] = [];
+    const overdue: Lead[] = [];
 
     leadsWithFollowUp.forEach(lead => {
       if (!lead.nextFollowUp) return;
@@ -33,7 +35,7 @@ export default function FollowUps() {
 
   const { today, tomorrow, thisWeek, overdue } = categorizeFollowUps();
 
-  const FollowUpCard = ({ lead, isOverdue = false }: { lead: typeof mockLeads[0], isOverdue?: boolean }) => (
+  const FollowUpCard = ({ lead, isOverdue = false }: { lead: Lead, isOverdue?: boolean }) => (
     <div className={`bg-card rounded-xl p-5 shadow-card hover:shadow-card-hover transition-all duration-300 ${isOverdue ? 'border-l-4 border-destructive' : ''}`}>
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
@@ -81,17 +83,17 @@ export default function FollowUps() {
     </div>
   );
 
-  const Section = ({ title, leads, isOverdue = false }: { title: string, leads: typeof mockLeads, isOverdue?: boolean }) => (
+  const Section = ({ title, leads: sectionLeads, isOverdue = false }: { title: string, leads: Lead[], isOverdue?: boolean }) => (
     <div className="mb-8">
       <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
         {title}
         <span className="text-sm font-normal px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-          {leads.length}
+          {sectionLeads.length}
         </span>
       </h2>
-      {leads.length > 0 ? (
+      {sectionLeads.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {leads.map((lead, index) => (
+          {sectionLeads.map((lead, index) => (
             <div key={lead.id} className="animate-slide-up" style={{ animationDelay: `${index * 0.1}s` }}>
               <FollowUpCard lead={lead} isOverdue={isOverdue} />
             </div>
@@ -104,6 +106,16 @@ export default function FollowUps() {
       )}
     </div>
   );
+
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center h-[60vh]">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
