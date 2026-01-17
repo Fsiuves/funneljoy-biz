@@ -1,11 +1,13 @@
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { MetricCard } from '@/components/dashboard/MetricCard';
-import { mockLeads, mockMetrics, mockTeamMembers } from '@/data/mockData';
+import { useLeads } from '@/hooks/useLeads';
 import { LEAD_SOURCES, LEAD_STAGES } from '@/types/crm';
-import { Users, TrendingUp, Target, DollarSign, Award, UserCheck } from 'lucide-react';
+import { Users, TrendingUp, Target, DollarSign, Loader2 } from 'lucide-react';
 
 export default function Reports() {
+  const { data: leads = [], isLoading } = useLeads();
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -13,18 +15,22 @@ export default function Reports() {
     }).format(value);
   };
 
+  const wonLeads = leads.filter(l => l.stage === 'won');
+  const conversionRate = leads.length > 0 ? Math.round((wonLeads.length / leads.length) * 100) : 0;
+  const totalRevenue = wonLeads.reduce((sum, l) => sum + (l.value || 0), 0);
+
   const getSourceStats = () => {
     return LEAD_SOURCES.map(source => ({
       ...source,
-      count: mockLeads.filter(lead => lead.source === source.value).length,
+      count: leads.filter(lead => lead.source === source.value).length,
     }));
   };
 
   const getStageStats = () => {
     return LEAD_STAGES.map(stage => ({
       ...stage,
-      count: mockLeads.filter(lead => lead.stage === stage.value).length,
-      totalValue: mockLeads
+      count: leads.filter(lead => lead.stage === stage.value).length,
+      totalValue: leads
         .filter(lead => lead.stage === stage.value)
         .reduce((sum, lead) => sum + (lead.value || 0), 0),
     }));
@@ -32,6 +38,16 @@ export default function Reports() {
 
   const sourceStats = getSourceStats();
   const stageStats = getStageStats();
+
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center h-[60vh]">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -44,28 +60,24 @@ export default function Reports() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <MetricCard
           title="Taxa de Conversão"
-          value={`${mockMetrics.conversionRate}%`}
-          change={{ value: 3.2, isPositive: true }}
+          value={`${conversionRate}%`}
           icon={Target}
         />
         <MetricCard
-          title="Tempo Médio de Fechamento"
-          value={`${mockMetrics.avgClosingDays} dias`}
-          change={{ value: 2, isPositive: false }}
+          title="Leads Ativos"
+          value={leads.filter(l => !['won', 'lost'].includes(l.stage)).length}
           icon={TrendingUp}
           iconColor="text-warning"
         />
         <MetricCard
           title="Total de Leads"
-          value={mockMetrics.totalLeads}
-          change={{ value: 12, isPositive: true }}
+          value={leads.length}
           icon={Users}
           iconColor="text-primary"
         />
         <MetricCard
           title="Receita Total"
-          value={formatCurrency(mockMetrics.totalRevenue)}
-          change={{ value: 18, isPositive: true }}
+          value={formatCurrency(totalRevenue)}
           icon={DollarSign}
           iconColor="text-success"
         />
@@ -77,7 +89,7 @@ export default function Reports() {
           <h3 className="text-lg font-semibold text-foreground mb-6">Leads por Origem</h3>
           <div className="space-y-4">
             {sourceStats.map((source, index) => {
-              const percentage = (source.count / mockLeads.length) * 100;
+              const percentage = leads.length > 0 ? (source.count / leads.length) * 100 : 0;
               return (
                 <div key={source.value} className="animate-slide-up" style={{ animationDelay: `${index * 0.1}s` }}>
                   <div className="flex items-center justify-between mb-2">
@@ -101,7 +113,7 @@ export default function Reports() {
           <h3 className="text-lg font-semibold text-foreground mb-6">Leads por Etapa</h3>
           <div className="space-y-4">
             {stageStats.map((stage, index) => {
-              const percentage = (stage.count / mockLeads.length) * 100;
+              const percentage = leads.length > 0 ? (stage.count / leads.length) * 100 : 0;
               const stageColor = stage.value === 'new' ? 'hsl(var(--stage-new))' :
                                  stage.value === 'negotiation' ? 'hsl(var(--stage-negotiation))' :
                                  stage.value === 'proposal' ? 'hsl(var(--stage-proposal))' :
@@ -126,67 +138,6 @@ export default function Reports() {
               );
             })}
           </div>
-        </div>
-      </div>
-
-      {/* Team Performance */}
-      <div className="bg-card rounded-xl p-6 shadow-card animate-fade-in">
-        <h3 className="text-lg font-semibold text-foreground mb-6">Desempenho da Equipe</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-3 text-sm font-semibold text-foreground">Vendedor</th>
-                <th className="text-center py-3 text-sm font-semibold text-foreground">Leads</th>
-                <th className="text-center py-3 text-sm font-semibold text-foreground">Conversões</th>
-                <th className="text-center py-3 text-sm font-semibold text-foreground">Taxa</th>
-                <th className="text-right py-3 text-sm font-semibold text-foreground">Performance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mockTeamMembers.map((member, index) => {
-                const rate = ((member.conversions / member.leadsCount) * 100).toFixed(1);
-                const isTopPerformer = index === 0;
-                return (
-                  <tr key={member.id} className="border-b border-border animate-slide-up" style={{ animationDelay: `${index * 0.1}s` }}>
-                    <td className="py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="text-sm font-semibold text-primary">
-                            {member.name.split(' ').map(n => n[0]).join('')}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground flex items-center gap-2">
-                            {member.name}
-                            {isTopPerformer && <Award className="w-4 h-4 text-warning" />}
-                          </p>
-                          <p className="text-sm text-muted-foreground">{member.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="text-center py-4">
-                      <span className="text-foreground font-medium">{member.leadsCount}</span>
-                    </td>
-                    <td className="text-center py-4">
-                      <span className="text-success font-medium">{member.conversions}</span>
-                    </td>
-                    <td className="text-center py-4">
-                      <span className="text-foreground font-medium">{rate}%</span>
-                    </td>
-                    <td className="text-right py-4">
-                      <div className="w-24 h-2 bg-muted rounded-full overflow-hidden ml-auto">
-                        <div
-                          className="h-full rounded-full bg-success transition-all duration-500"
-                          style={{ width: `${rate}%` }}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
         </div>
       </div>
     </MainLayout>

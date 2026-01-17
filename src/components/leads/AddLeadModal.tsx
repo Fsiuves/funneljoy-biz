@@ -1,15 +1,23 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
-import { Lead, LeadSource, LEAD_SOURCES } from '@/types/crm';
+import { X, Loader2 } from 'lucide-react';
+import { LeadSource, LEAD_SOURCES } from '@/types/crm';
 import { Button } from '@/components/ui/button';
 
 interface AddLeadModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (lead: Omit<Lead, 'id' | 'createdAt' | 'updatedAt' | 'stage'>) => void;
+  onAdd: (lead: {
+    name: string;
+    email: string;
+    phone: string;
+    company?: string;
+    source: LeadSource;
+    value?: number;
+  }) => void;
+  isLoading?: boolean;
 }
 
-export function AddLeadModal({ isOpen, onClose, onAdd }: AddLeadModalProps) {
+export function AddLeadModal({ isOpen, onClose, onAdd, isLoading }: AddLeadModalProps) {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -25,6 +33,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd }: AddLeadModalProps) {
     e.preventDefault();
     onAdd({
       ...formData,
+      company: formData.company || undefined,
       value: formData.value ? parseFloat(formData.value) : undefined,
     });
     setFormData({
@@ -35,7 +44,6 @@ export function AddLeadModal({ isOpen, onClose, onAdd }: AddLeadModalProps) {
       source: 'website',
       value: '',
     });
-    onClose();
   };
 
   return (
@@ -73,6 +81,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd }: AddLeadModalProps) {
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="input-field"
                 placeholder="Nome completo"
+                disabled={isLoading}
               />
             </div>
 
@@ -87,6 +96,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd }: AddLeadModalProps) {
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="input-field"
                 placeholder="email@exemplo.com"
+                disabled={isLoading}
               />
             </div>
 
@@ -101,6 +111,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd }: AddLeadModalProps) {
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 className="input-field"
                 placeholder="(00) 00000-0000"
+                disabled={isLoading}
               />
             </div>
 
@@ -114,6 +125,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd }: AddLeadModalProps) {
                 onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                 className="input-field"
                 placeholder="Nome da empresa"
+                disabled={isLoading}
               />
             </div>
 
@@ -126,6 +138,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd }: AddLeadModalProps) {
                 value={formData.source}
                 onChange={(e) => setFormData({ ...formData, source: e.target.value as LeadSource })}
                 className="input-field"
+                disabled={isLoading}
               >
                 {LEAD_SOURCES.map((source) => (
                   <option key={source.value} value={source.value}>
@@ -147,17 +160,18 @@ export function AddLeadModal({ isOpen, onClose, onAdd }: AddLeadModalProps) {
                 placeholder="0,00"
                 min="0"
                 step="0.01"
+                disabled={isLoading}
               />
             </div>
           </div>
 
           {/* Actions */}
           <div className="flex gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1" disabled={isLoading}>
               Cancelar
             </Button>
-            <Button type="submit" className="flex-1 btn-primary">
-              Adicionar Lead
+            <Button type="submit" className="flex-1 btn-primary" disabled={isLoading}>
+              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Adicionar Lead'}
             </Button>
           </div>
         </form>

@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
@@ -8,8 +8,9 @@ import {
   Settings,
   UserCircle,
   MessageSquare,
-  Bell,
+  LogOut,
 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
@@ -23,6 +24,13 @@ const menuItems = [
 
 export function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/auth');
+  };
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-sidebar flex flex-col z-50">
@@ -58,12 +66,19 @@ export function Sidebar() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-sidebar-foreground truncate">
-              Admin User
+              {user?.user_metadata?.name || 'Usuário'}
             </p>
             <p className="text-xs text-sidebar-foreground/60 truncate">
-              admin@empresa.com
+              {user?.email || ''}
             </p>
           </div>
+          <button
+            onClick={handleLogout}
+            className="p-2 rounded-lg hover:bg-sidebar-accent transition-colors"
+            title="Sair"
+          >
+            <LogOut className="w-4 h-4 text-sidebar-foreground/60" />
+          </button>
         </div>
       </div>
     </aside>
