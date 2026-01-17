@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Lead, LeadSource, LeadStage } from '@/types/crm';
 import { toast } from '@/hooks/use-toast';
+import { getUserTenantId } from '@/hooks/useTenant';
 
 interface LeadRow {
   id: string;
@@ -18,6 +19,7 @@ interface LeadRow {
   created_at: string;
   updated_at: string;
   created_by: string;
+  tenant_id: string | null;
 }
 
 const mapLeadFromDb = (row: LeadRow): Lead => ({
@@ -66,6 +68,9 @@ export function useCreateLead() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
+      const tenantId = await getUserTenantId();
+      if (!tenantId) throw new Error('Tenant não encontrado. Configure sua empresa primeiro.');
+
       const { data, error } = await supabase
         .from('leads')
         .insert({
@@ -76,6 +81,7 @@ export function useCreateLead() {
           source: lead.source,
           value: lead.value || null,
           created_by: user.id,
+          tenant_id: tenantId,
         })
         .select()
         .single();
