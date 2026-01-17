@@ -2,7 +2,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Activity, ActivityType } from '@/types/crm';
 import { toast } from '@/hooks/use-toast';
-import { getUserTenantId } from '@/hooks/useTenant';
 
 interface ActivityRow {
   id: string;
@@ -22,6 +21,19 @@ const mapActivityFromDb = (row: ActivityRow): Activity => ({
   createdAt: new Date(row.created_at),
   createdBy: row.created_by,
 });
+
+async function getUserTenantId(): Promise<string | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('tenant_id')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  return profile?.tenant_id || null;
+}
 
 export function useActivities(leadId?: string) {
   return useQuery({
@@ -57,7 +69,7 @@ export function useCreateActivity() {
       if (!user) throw new Error('Usuário não autenticado');
 
       const tenantId = await getUserTenantId();
-      if (!tenantId) throw new Error('Tenant não encontrado');
+      if (!tenantId) throw new Error('Empresa não encontrada');
 
       const { data, error } = await supabase
         .from('activities')
