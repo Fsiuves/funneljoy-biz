@@ -2,7 +2,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Lead, LeadSource, LeadStage } from '@/types/crm';
 import { toast } from '@/hooks/use-toast';
-import { getUserTenantId } from '@/hooks/useTenant';
 
 interface LeadRow {
   id: string;
@@ -38,6 +37,19 @@ const mapLeadFromDb = (row: LeadRow): Lead => ({
   updatedAt: new Date(row.updated_at),
 });
 
+async function getUserTenantId(): Promise<string | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('tenant_id')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  return profile?.tenant_id || null;
+}
+
 export function useLeads() {
   return useQuery({
     queryKey: ['leads'],
@@ -69,7 +81,7 @@ export function useCreateLead() {
       if (!user) throw new Error('Usuário não autenticado');
 
       const tenantId = await getUserTenantId();
-      if (!tenantId) throw new Error('Tenant não encontrado. Configure sua empresa primeiro.');
+      if (!tenantId) throw new Error('Empresa não encontrada. Faça login novamente.');
 
       const { data, error } = await supabase
         .from('leads')

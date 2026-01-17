@@ -39,6 +39,12 @@ export default function Auth() {
           setLoading(false);
           return;
         }
+
+        if (!companyName.trim()) {
+          setError('Nome da empresa é obrigatório');
+          setLoading(false);
+          return;
+        }
         
         const { error } = await signUp(email, password, name, companyName);
         if (error) {
@@ -69,9 +75,9 @@ export default function Auth() {
               <span className="text-2xl font-bold text-primary-foreground">C</span>
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-foreground">CRM White Label</h1>
+          <h1 className="text-2xl font-bold text-foreground">CRM Pro</h1>
           <p className="text-muted-foreground mt-2">
-            {isLogin ? 'Entre na sua conta' : 'Crie sua conta e empresa'}
+            {isLogin ? 'Entre na sua conta' : 'Cadastre sua empresa'}
           </p>
         </div>
 
@@ -92,7 +98,7 @@ export default function Auth() {
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
                       className="input-field pl-10"
-                      placeholder="Sua empresa"
+                      placeholder="Nome da sua empresa"
                     />
                   </div>
                 </div>
@@ -108,7 +114,7 @@ export default function Auth() {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       className="input-field pl-10"
-                      placeholder="Seu nome"
+                      placeholder="Seu nome completo"
                     />
                   </div>
                 </div>
@@ -181,7 +187,7 @@ export default function Auth() {
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               {isLogin ? (
-                <>Não tem conta? <span className="text-primary font-medium">Cadastre-se</span></>
+                <>Não tem conta? <span className="text-primary font-medium">Cadastre sua empresa</span></>
               ) : (
                 <>Já tem conta? <span className="text-primary font-medium">Entre</span></>
               )}
