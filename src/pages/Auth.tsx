@@ -75,7 +75,7 @@ export default function Auth() {
               <span className="text-2xl font-bold text-primary-foreground">C</span>
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-foreground">CRM Pro</h1>
+          <h1 className="text-2xl font-bold text-foreground">CRM Dom Intelligence</h1>
           <p className="text-muted-foreground mt-2">
             {isLogin ? 'Entre na sua conta' : 'Cadastre sua empresa'}
           </p>
