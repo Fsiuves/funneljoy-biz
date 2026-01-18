@@ -34,7 +34,7 @@ export function useAuth() {
 
   const signUp = async (email: string, password: string, name?: string, companyName?: string) => {
     const redirectUrl = `${window.location.origin}/`;
-    
+
     const { error, data } = await supabase.auth.signUp({
       email,
       password,
@@ -43,42 +43,58 @@ export function useAuth() {
         data: { name },
       },
     });
-    
-    // Create tenant and profile after signup
-    if (!error && data.user) {
-      // Create tenant first
-      const slug = companyName 
-        ? companyName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-')
-        : `empresa-${Date.now()}`;
-      
-      const { data: tenant, error: tenantError } = await supabase
-        .from('tenants')
-        .insert({
-          name: companyName || 'Minha Empresa',
-          slug: slug,
-        })
-        .select()
-        .single();
-      
-      if (tenantError) {
-        console.error('Error creating tenant:', tenantError);
-        return { error: tenantError };
-      }
 
-      // Create profile with tenant_id
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: data.user.id,
-        email: email,
-        name: name || null,
-        tenant_id: tenant.id,
-      });
-
-      if (profileError) {
-        console.error('Error creating profile:', profileError);
-      }
+    if (error) return { error, needsEmailConfirmation: false as const };
+    if (!data.user) {
+      return {
+        error: new Error('Não foi possível criar o usuário.'),
+        needsEmailConfirmation: false as const,
+      };
     }
-    
-    return { error };
+
+    // Se a confirmação por email estiver habilitada, não haverá sessão agora.
+    // Nesse caso, o usuário precisa confirmar o email e fazer login antes de criarmos o tenant/perfil.
+    if (!data.session) {
+      return { error: null, needsEmailConfirmation: true as const };
+    }
+
+    // Garante que o cliente está autenticado ANTES de chamar o banco (evita RLS no signup)
+    await supabase.auth.setSession({
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+    });
+
+    // Create tenant and profile after signup (requires authenticated session)
+    const baseSlug = (companyName || 'minha-empresa')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '')
+      .slice(0, 40);
+
+    const slug = `${baseSlug || 'empresa'}-${Date.now().toString(36)}`;
+
+    const { data: tenant, error: tenantError } = await supabase
+      .from('tenants')
+      .insert({
+        name: companyName || 'Minha Empresa',
+        slug,
+      })
+      .select()
+      .single();
+
+    if (tenantError) return { error: tenantError, needsEmailConfirmation: false as const };
+
+    const { error: profileError } = await supabase.from('profiles').insert({
+      id: data.user.id,
+      email,
+      name: name || null,
+      tenant_id: tenant.id,
+    });
+
+    if (profileError) return { error: profileError, needsEmailConfirmation: false as const };
+
+    return { error: null, needsEmailConfirmation: false as const };
   };
 
   const signOut = async () => {

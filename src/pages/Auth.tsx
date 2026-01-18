@@ -12,6 +12,7 @@ export default function Auth() {
   const [companyName, setCompanyName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
   
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
@@ -19,6 +20,7 @@ export default function Auth() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setMessage('');
     setLoading(true);
 
     try {
@@ -45,20 +47,23 @@ export default function Auth() {
           setLoading(false);
           return;
         }
-        
-        const { error } = await signUp(email, password, name, companyName);
+
+        const { error, needsEmailConfirmation } = await signUp(email, password, name, companyName);
+
         if (error) {
           if (error.message.includes('already registered')) {
             setError('Este email já está cadastrado');
           } else {
             setError(error.message);
           }
+        } else if (needsEmailConfirmation) {
+          setMessage('Conta criada! Confirme seu email e depois faça login para concluir o cadastro.');
+          setIsLogin(true);
         } else {
-          setError('');
           navigate('/');
         }
       }
-    } catch (err) {
+    } catch {
       setError('Ocorreu um erro. Tente novamente.');
     } finally {
       setLoading(false);
@@ -156,6 +161,12 @@ export default function Auth() {
               </div>
             </div>
 
+            {message && (
+              <div className="p-3 rounded-lg bg-primary/10 text-primary text-sm">
+                {message}
+              </div>
+            )}
+
             {error && (
               <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
                 {error}
@@ -183,6 +194,7 @@ export default function Auth() {
               onClick={() => {
                 setIsLogin(!isLogin);
                 setError('');
+                setMessage('');
               }}
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
