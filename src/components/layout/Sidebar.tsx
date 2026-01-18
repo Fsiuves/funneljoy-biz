@@ -36,8 +36,8 @@ export function Sidebar() {
     <aside className="fixed left-0 top-0 h-screen w-64 bg-sidebar flex flex-col z-50">
       {/* Logo */}
       <div className="p-6 border-b border-sidebar-border">
-        <h1 className="text-2xl font-bold text-sidebar-foreground">
-          <span className="text-sidebar-primary">CRM</span>Pro
+        <h1 className="text-xl font-bold text-sidebar-foreground">
+          <span className="text-sidebar-primary">CRM</span> Dom Intelligence
         </h1>
       </div>
 
