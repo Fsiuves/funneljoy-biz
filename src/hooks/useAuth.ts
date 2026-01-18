@@ -33,6 +33,9 @@ export function useAuth() {
   };
 
   const signUp = async (email: string, password: string, name?: string, companyName?: string) => {
+    // Ensure no stale session before signup
+    await supabase.auth.signOut();
+
     const redirectUrl = `${window.location.origin}/`;
 
     const { error, data } = await supabase.auth.signUp({
@@ -58,11 +61,24 @@ export function useAuth() {
       return { error: null, needsEmailConfirmation: true as const };
     }
 
-    // Garante que o cliente está autenticado ANTES de chamar o banco (evita RLS no signup)
-    await supabase.auth.setSession({
+    // Set the session and validate it was applied correctly
+    const { error: sessionError } = await supabase.auth.setSession({
       access_token: data.session.access_token,
       refresh_token: data.session.refresh_token,
     });
+
+    if (sessionError) {
+      return { error: sessionError, needsEmailConfirmation: false as const };
+    }
+
+    // Double-check current user matches the new signup
+    const { data: currentUser } = await supabase.auth.getUser();
+    if (currentUser.user?.id !== data.user.id) {
+      return {
+        error: new Error('Sessão inválida. Por favor, tente novamente.'),
+        needsEmailConfirmation: false as const,
+      };
+    }
 
     // Create tenant and profile after signup (requires authenticated session)
     const baseSlug = (companyName || 'minha-empresa')
