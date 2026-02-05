@@ -46,8 +46,9 @@ export function Sidebar() {
             <img 
               src={logoUrl} 
               alt={tenant?.name || 'Logo'} 
-              className="h-10 w-auto max-w-[180px] object-contain"
+              className="h-10 w-auto max-w-[140px] object-contain"
             />
+            <span className="text-xl font-bold text-sidebar-primary">CRM</span>
           </div>
         ) : (
           <h1 className="text-xl font-bold text-sidebar-foreground">
