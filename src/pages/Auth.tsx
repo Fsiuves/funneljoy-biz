@@ -55,17 +55,21 @@ export default function Auth() {
           return;
         }
 
-        const { error, needsEmailConfirmation } = await signUp(email, password, name, companyName);
+        const result = await signUp(email, password, name, companyName);
 
-        if (error) {
-          if (error.message.includes('already registered')) {
+        if (result.error) {
+          if (result.error.message.includes('already registered')) {
             setError('Este email já está cadastrado');
           } else {
-            setError(error.message);
+            setError(result.error.message);
           }
-        } else if (needsEmailConfirmation) {
+        } else if (result.needsEmailConfirmation) {
           setMessage('Conta criada! Confirme seu email e depois faça login para concluir o cadastro.');
           setIsLogin(true);
+        } else if ('needsOnboarding' in result && result.needsOnboarding) {
+          // Tenant/profile creation failed but user is authenticated
+          // Redirect to onboarding to complete setup
+          navigate('/onboarding');
         } else {
           navigate('/');
         }
