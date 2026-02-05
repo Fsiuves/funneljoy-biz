@@ -12,6 +12,7 @@ import Conversations from "./pages/Conversations";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
+import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,11 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<Auth />} />
+          <Route path="/onboarding" element={
+            <ProtectedRoute requireTenant={false}>
+              <Onboarding />
+            </ProtectedRoute>
+          } />
           <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
           <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
           <Route path="/funnel" element={<ProtectedRoute><Funnel /></ProtectedRoute>} />

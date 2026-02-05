@@ -55,8 +55,8 @@ export function useAuth() {
       };
     }
 
-    // Se a confirmação por email estiver habilitada, não haverá sessão agora.
-    // Nesse caso, o usuário precisa confirmar o email e fazer login antes de criarmos o tenant/perfil.
+    // If email confirmation is required, no session will exist now.
+    // User needs to confirm email and login to complete tenant/profile creation.
     if (!data.session) {
       return { error: null, needsEmailConfirmation: true as const };
     }
@@ -90,6 +90,7 @@ export function useAuth() {
 
     const slug = `${baseSlug || 'empresa'}-${Date.now().toString(36)}`;
 
+    // Try to create tenant
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
       .insert({
@@ -99,8 +100,18 @@ export function useAuth() {
       .select()
       .single();
 
-    if (tenantError) return { error: tenantError, needsEmailConfirmation: false as const };
+    if (tenantError) {
+      console.error('Tenant creation error:', tenantError);
+      // Don't fail completely - user can complete onboarding later
+      // Return success but redirect to onboarding
+      return { 
+        error: null, 
+        needsEmailConfirmation: false as const,
+        needsOnboarding: true as const 
+      };
+    }
 
+    // Try to create profile
     const { error: profileError } = await supabase.from('profiles').insert({
       id: data.user.id,
       email,
@@ -108,9 +119,18 @@ export function useAuth() {
       tenant_id: tenant.id,
     });
 
-    if (profileError) return { error: profileError, needsEmailConfirmation: false as const };
+    if (profileError) {
+      console.error('Profile creation error:', profileError);
+      // Tenant was created but profile failed
+      // User can still use onboarding to fix this
+      return { 
+        error: null, 
+        needsEmailConfirmation: false as const,
+        needsOnboarding: true as const 
+      };
+    }
 
-    return { error: null, needsEmailConfirmation: false as const };
+    return { error: null, needsEmailConfirmation: false as const, needsOnboarding: false as const };
   };
 
   const signOut = async () => {
