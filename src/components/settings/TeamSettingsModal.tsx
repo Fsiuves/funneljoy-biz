@@ -39,14 +39,32 @@ export function TeamSettingsModal({ open, onOpenChange }: TeamSettingsModalProps
     setLoadingMembers(false);
   };
 
+  // Password validation with complexity requirements
+  const validatePassword = (password: string): { valid: boolean; error: string | null } => {
+    if (password.length < 8) {
+      return { valid: false, error: 'A senha deve ter pelo menos 8 caracteres' };
+    }
+    if (!/[A-Z]/.test(password)) {
+      return { valid: false, error: 'A senha deve conter pelo menos uma letra maiúscula' };
+    }
+    if (!/[a-z]/.test(password)) {
+      return { valid: false, error: 'A senha deve conter pelo menos uma letra minúscula' };
+    }
+    if (!/[0-9]/.test(password)) {
+      return { valid: false, error: 'A senha deve conter pelo menos um número' };
+    }
+    return { valid: true, error: null };
+  };
+
   const handleInvite = async () => {
     if (!newMember.email || !newMember.password) {
       toast.error('Email e senha são obrigatórios');
       return;
     }
 
-    if (newMember.password.length < 6) {
-      toast.error('A senha deve ter pelo menos 6 caracteres');
+    const passwordValidation = validatePassword(newMember.password);
+    if (!passwordValidation.valid) {
+      toast.error(passwordValidation.error);
       return;
     }
 
@@ -158,9 +176,12 @@ export function TeamSettingsModal({ open, onOpenChange }: TeamSettingsModalProps
                     type="password"
                     value={newMember.password}
                     onChange={(e) => setNewMember({ ...newMember, password: e.target.value })}
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder="Mín 8 chars, maiúscula, minúscula, número"
                     className="pl-10"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Mínimo 8 caracteres com maiúscula, minúscula e número
+                  </p>
                 </div>
               </div>
 
