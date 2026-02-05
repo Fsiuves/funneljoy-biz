@@ -11,6 +11,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useTenant } from '@/hooks/useTenant';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
@@ -26,19 +27,33 @@ export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { tenant } = useTenant();
 
   const handleLogout = async () => {
     await signOut();
     navigate('/auth');
   };
 
+  // Use system logo if available, fallback to company logo
+  const logoUrl = tenant?.system_logo_url || tenant?.logo_url;
+
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-sidebar flex flex-col z-50">
       {/* Logo */}
       <div className="p-6 border-b border-sidebar-border">
-        <h1 className="text-xl font-bold text-sidebar-foreground">
-          <span className="text-sidebar-primary">CRM</span> Dom Intelligence
-        </h1>
+        {logoUrl ? (
+          <div className="flex items-center gap-3">
+            <img 
+              src={logoUrl} 
+              alt={tenant?.name || 'Logo'} 
+              className="h-10 w-auto max-w-[180px] object-contain"
+            />
+          </div>
+        ) : (
+          <h1 className="text-xl font-bold text-sidebar-foreground">
+            <span className="text-sidebar-primary">CRM</span> {tenant?.name || 'Dom Intelligence'}
+          </h1>
+        )}
       </div>
 
       {/* Navigation */}

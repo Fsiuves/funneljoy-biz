@@ -17,6 +17,38 @@ interface AddLeadModalProps {
   isLoading?: boolean;
 }
 
+// Format phone as (00) 00000-0000
+const formatPhone = (value: string): string => {
+  const numbers = value.replace(/\D/g, '').slice(0, 11);
+  if (numbers.length <= 2) return numbers;
+  if (numbers.length <= 7) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+  return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
+};
+
+// Format value as Brazilian Real (1.234,56)
+const formatCurrency = (value: string): string => {
+  // Remove everything except digits
+  const numbers = value.replace(/\D/g, '');
+  if (!numbers) return '';
+  
+  // Convert to number (cents)
+  const cents = parseInt(numbers, 10);
+  
+  // Format with Brazilian locale
+  return new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
+};
+
+// Parse formatted currency back to number
+const parseCurrency = (formatted: string): number => {
+  if (!formatted) return 0;
+  // Remove dots (thousands) and replace comma with dot (decimal)
+  const normalized = formatted.replace(/\./g, '').replace(',', '.');
+  return parseFloat(normalized) || 0;
+};
+
 export function AddLeadModal({ isOpen, onClose, onAdd, isLoading }: AddLeadModalProps) {
   const [formData, setFormData] = useState({
     name: '',
@@ -31,10 +63,12 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading }: AddLeadModal
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const numericValue = formData.value ? parseCurrency(formData.value) : undefined;
     onAdd({
       ...formData,
+      phone: formData.phone.replace(/\D/g, ''), // Send only numbers
       company: formData.company || undefined,
-      value: formData.value ? parseFloat(formData.value) : undefined,
+      value: numericValue,
     });
     setFormData({
       name: '',
@@ -44,6 +78,14 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading }: AddLeadModal
       source: 'website',
       value: '',
     });
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, phone: formatPhone(e.target.value) });
+  };
+
+  const handleValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, value: formatCurrency(e.target.value) });
   };
 
   return (
@@ -108,7 +150,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading }: AddLeadModal
                 type="tel"
                 required
                 value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                onChange={handlePhoneChange}
                 className="input-field"
                 placeholder="(00) 00000-0000"
                 disabled={isLoading}
@@ -153,13 +195,12 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading }: AddLeadModal
                 Valor Estimado (R$)
               </label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 value={formData.value}
-                onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                onChange={handleValueChange}
                 className="input-field"
                 placeholder="0,00"
-                min="0"
-                step="0.01"
                 disabled={isLoading}
               />
             </div>
