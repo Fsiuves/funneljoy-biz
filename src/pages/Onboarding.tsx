@@ -30,72 +30,32 @@ export default function Onboarding() {
     setLoading(true);
 
     try {
-      // Generate unique slug
-      const baseSlug = companyName
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '')
-        .slice(0, 40);
+      // Use the security definer function that handles everything atomically
+      const { data, error } = await supabase.rpc('create_my_tenant', {
+        _company_name: companyName.trim()
+      });
 
-      const slug = `${baseSlug || 'empresa'}-${Date.now().toString(36)}`;
-
-      // Create tenant
-      const { data: tenant, error: tenantError } = await supabase
-        .from('tenants')
-        .insert({
-          name: companyName.trim(),
-          slug,
-        })
-        .select()
-        .single();
-
-      if (tenantError) {
-        console.error('Tenant error:', tenantError);
-        toast.error('Erro ao criar empresa: ' + tenantError.message);
+      if (error) {
+        console.error('Create tenant error:', error);
+        
+        // Handle specific error cases
+        if (error.message.includes('tenant_already_exists')) {
+          toast.error('Você já possui uma empresa cadastrada');
+        } else if (error.message.includes('company_name_required')) {
+          toast.error('Nome da empresa é obrigatório');
+        } else if (error.message.includes('not_authenticated')) {
+          toast.error('Você precisa estar logado');
+          navigate('/auth');
+          return;
+        } else {
+          toast.error('Erro ao criar empresa: ' + error.message);
+        }
+        
         setLoading(false);
         return;
       }
 
-      // Check if profile exists
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (existingProfile) {
-        // Update existing profile with tenant_id
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ tenant_id: tenant.id })
-          .eq('id', user.id);
-
-        if (updateError) {
-          console.error('Profile update error:', updateError);
-          toast.error('Erro ao vincular perfil: ' + updateError.message);
-          setLoading(false);
-          return;
-        }
-      } else {
-        // Create new profile
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: user.id,
-            email: user.email || '',
-            name: user.user_metadata?.name || null,
-            tenant_id: tenant.id,
-          });
-
-        if (profileError) {
-          console.error('Profile error:', profileError);
-          toast.error('Erro ao criar perfil: ' + profileError.message);
-          setLoading(false);
-          return;
-        }
-      }
-
+      console.log('Tenant created successfully:', data);
       toast.success('Empresa criada com sucesso!');
       
       // Force page reload to refresh all contexts

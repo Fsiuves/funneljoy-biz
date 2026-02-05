@@ -238,6 +238,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_my_tenant: { Args: { _company_name: string }; Returns: string }
       get_user_role: {
         Args: { _tenant_id: string; _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
