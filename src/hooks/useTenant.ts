@@ -142,7 +142,30 @@ export function useTenant() {
   const inviteTeamMember = async (email: string, name: string, password: string, role: 'admin' | 'manager' | 'sales' = 'sales') => {
     if (!tenant) return { error: 'No tenant found' };
 
-    // Create user via Supabase Auth
+    // Step 1: Validate invitation server-side
+    const { data: validation, error: validationError } = await supabase.rpc('invite_team_member', {
+      _email: email,
+      _name: name,
+      _role: role,
+    });
+
+    if (validationError) return { error: validationError.message };
+    
+    const validationResult = validation as { success: boolean; error?: string };
+    if (!validationResult.success) {
+      const errorMessages: Record<string, string> = {
+        not_authenticated: 'Você precisa estar logado',
+        not_authorized: 'Você não tem permissão para convidar membros',
+        no_tenant: 'Empresa não encontrada',
+        invalid_email: 'Email inválido',
+        invalid_name: 'Nome deve ter pelo menos 2 caracteres',
+        invalid_role: 'Função inválida',
+        email_already_exists: 'Este email já está cadastrado nesta empresa',
+      };
+      return { error: errorMessages[validationResult.error || ''] || 'Erro ao validar convite' };
+    }
+
+    // Step 2: Create user via Supabase Auth
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -152,26 +175,21 @@ export function useTenant() {
     });
 
     if (error) return { error: error.message };
+    if (!data.user) return { error: 'Não foi possível criar o usuário' };
 
-    if (data.user) {
-      // Create profile for new user
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: data.user.id,
-        email,
-        name,
-        tenant_id: tenant.id,
-      });
+    // Step 3: Complete setup server-side (profile + role)
+    const { data: setupResult, error: setupError } = await supabase.rpc('complete_team_member_setup', {
+      _user_id: data.user.id,
+      _email: email,
+      _name: name,
+      _role: role,
+    });
 
-      if (profileError) return { error: profileError.message };
-
-      // Assign role
-      const { error: roleError } = await supabase.from('user_roles').insert({
-        user_id: data.user.id,
-        role,
-        tenant_id: tenant.id,
-      });
-
-      if (roleError) return { error: roleError.message };
+    if (setupError) return { error: setupError.message };
+    
+    const setup = setupResult as { success: boolean; error?: string };
+    if (!setup.success) {
+      return { error: 'Erro ao configurar membro da equipe' };
     }
 
     return { error: null };

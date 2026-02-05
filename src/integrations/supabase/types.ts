@@ -238,6 +238,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      complete_team_member_setup: {
+        Args: {
+          _email: string
+          _name: string
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: Json
+      }
       create_my_tenant: { Args: { _company_name: string }; Returns: string }
       get_user_role: {
         Args: { _tenant_id: string; _user_id: string }
@@ -250,6 +259,14 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      invite_team_member: {
+        Args: {
+          _email: string
+          _name: string
+          _role?: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: Json
       }
     }
     Enums: {
