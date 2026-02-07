@@ -1,91 +1,89 @@
 
-# Plano: Funcionalidades de Follow-ups e Atendimentos
+# Plano: Consolidar Follow-ups e Atendimentos em Uma Única Tela
 
-## Objetivo
-Tornar as telas de Follow-ups e Atendimentos funcionais, permitindo registrar atividades, agendar follow-ups e marcar tarefas como concluídas.
+## Problema Atual
+- Duas telas separadas para tarefas relacionadas
+- Muitos cliques para realizar uma ação simples
+- Usuário precisa navegar entre telas desnecessariamente
 
----
-
-## O Que Cada Tela Faz
-
-### Tela de Follow-ups
-Mostra todos os leads que possuem um retorno agendado, organizados por:
-- **Atrasados** - Follow-ups que já passaram da data
-- **Hoje** - Retornos para hoje
-- **Amanhã** - Retornos para amanhã
-- **Esta Semana** - Retornos nos próximos 7 dias
-
-### Tela de Atendimentos  
-Exibe o histórico de todas as interações realizadas com os leads:
-- Ligações telefônicas
-- Mensagens de WhatsApp
-- E-mails enviados
-- Reuniões realizadas
-- Anotações gerais
+## Solução
+Unificar tudo na tela de **Follow-ups**, que passará a ser a central de gestão de retornos e atividades.
 
 ---
 
-## Funcionalidades a Implementar
+## O Que Vai Mudar
 
-### 1. Modal de Registro de Atividade
-Um formulário para registrar interações com leads:
-- Selecionar o lead
-- Escolher o tipo (Ligação, WhatsApp, E-mail, Reunião, Anotação)
-- Escrever a descrição do que foi feito
-- Opcionalmente agendar um próximo follow-up
+### Na Tela de Follow-ups
+A tela será aprimorada para permitir:
+1. **Registrar atividades** diretamente (botão "Nova Atividade" no header)
+2. **Ver histórico de atividades** em uma aba ou seção expansível
+3. **Agendar novos follow-ups** para qualquer lead
+4. **Gerenciar retornos pendentes** (como já faz)
 
-### 2. Ações na Tela de Follow-ups
-- **Botão Ligar**: Abre modal para registrar que uma ligação foi feita
-- **Botão E-mail**: Abre modal para registrar que um e-mail foi enviado
-- **Botão Concluído**: Marca o follow-up como realizado (limpa a data de próximo contato)
+### O Que Será Removido
+1. Remover a página `/conversations` (Atendimentos)
+2. Remover o link "Atendimentos" do menu lateral
+3. Remover a rota do App.tsx
 
-### 3. Botão "Nova Atividade" na Tela de Atendimentos
-Adicionar um botão no cabeçalho para registrar novas atividades rapidamente.
+---
+
+## Nova Estrutura da Tela de Follow-ups
+
+```text
++------------------------------------------+
+|  Follow-ups    [+ Nova Atividade] [Filtros]
+|  Gerencie seus retornos e histórico      |
++------------------------------------------+
+|                                          |
+|  [Pendentes] [Histórico]     <- Abas     |
+|                                          |
+|  --- ABA PENDENTES (padrão) ---          |
+|  Seções: Atrasados, Hoje, Amanhã, Semana |
+|  Cards de leads com botões de ação       |
+|                                          |
+|  --- ABA HISTÓRICO ---                   |
+|  Timeline de todas as atividades         |
+|  realizadas (igual à tela Atendimentos)  |
++------------------------------------------+
+```
+
+---
+
+## Benefícios
+- Menos navegação entre telas
+- Fluxo mais intuitivo: vejo os pendentes, registro a atividade, vejo o histórico
+- Uma única tela para gerenciar toda a comunicação com leads
 
 ---
 
 ## Detalhes Técnicos
 
-### Novos Arquivos
-```text
-src/components/activities/
-  AddActivityModal.tsx     # Modal para registrar atividades
-  ScheduleFollowUpModal.tsx # Modal para agendar follow-ups
-```
-
-### Alterações em Arquivos Existentes
-
-**src/hooks/useLeads.ts**
-- Adicionar `useUpdateLead()` para atualizar campos do lead (incluindo `next_follow_up`)
+### Arquivos a Modificar
 
 **src/pages/FollowUps.tsx**
-- Conectar os botões "Ligar", "E-mail" e "Concluído"
-- Ao clicar em Ligar/E-mail: abrir modal de registro de atividade
-- Ao clicar em Concluído: limpar o `next_follow_up` do lead
-
-**src/pages/Conversations.tsx**
+- Adicionar sistema de abas: "Pendentes" e "Histórico"
+- Mover lógica da aba Histórico (conteúdo de Conversations)
 - Adicionar botão "Nova Atividade" no header
-- Integrar o modal de registro de atividade
+- Adicionar filtros por tipo de atividade no histórico
 
-### Fluxo do Modal de Atividade
-1. Usuário clica em "Ligar" no card de follow-up
-2. Modal abre com o tipo "Ligação" pré-selecionado e o lead já escolhido
-3. Usuário descreve o que foi conversado
-4. Opcionalmente agenda um próximo retorno
-5. Ao salvar:
-   - Cria registro na tabela `activities`
-   - Atualiza `next_follow_up` do lead (se agendado)
-   - Atualiza as listas em tempo real
+**src/App.tsx**
+- Remover rota `/conversations`
+- Remover import do Conversations
 
----
+**src/components/layout/Sidebar.tsx**
+- Remover item de menu "Atendimentos"
 
-## Resumo das Mudanças
+### Arquivos a Remover
+- `src/pages/Conversations.tsx`
 
-| O que | Onde | Resultado |
-|-------|------|-----------|
-| Modal de atividade | Novo componente | Registrar ligações, e-mails, etc |
-| Botão Ligar | Follow-ups | Abre modal com tipo "ligação" |
-| Botão E-mail | Follow-ups | Abre modal com tipo "e-mail" |
-| Botão Concluído | Follow-ups | Remove o follow-up agendado |
-| Botão Nova Atividade | Atendimentos | Registrar atividades manualmente |
-| Hook useUpdateLead | useLeads.ts | Atualizar dados do lead |
+### Estrutura Final da Tela
+
+| Aba | Conteúdo |
+|-----|----------|
+| **Pendentes** | Cards de leads organizados por data (Atrasados, Hoje, Amanhã, Semana) |
+| **Histórico** | Timeline de atividades realizadas com filtros por tipo |
+
+### Componentes Reutilizados
+- `AddActivityModal` - já existe, será usado no botão "Nova Atividade"
+- `ScheduleFollowUpModal` - já existe, disponível nos cards
+- Hooks `useActivities` e `useLeads` - já existem
