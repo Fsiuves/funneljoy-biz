@@ -132,6 +132,35 @@ export function useUpdateLeadStage() {
   });
 }
 
+export function useUpdateLead() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ id, nextFollowUp }: { id: string; nextFollowUp?: Date | null }) => {
+      const updateData: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+      
+      if (nextFollowUp !== undefined) {
+        updateData.next_follow_up = nextFollowUp ? nextFollowUp.toISOString() : null;
+      }
+
+      const { error } = await supabase
+        .from('leads')
+        .update(updateData)
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Erro ao atualizar lead', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
 export function useDeleteLead() {
   const queryClient = useQueryClient();
   

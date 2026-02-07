@@ -6,9 +6,10 @@ interface HeaderProps {
   subtitle?: string;
   onAddClick?: () => void;
   addButtonLabel?: string;
+  action?: React.ReactNode;
 }
 
-export function Header({ title, subtitle, onAddClick, addButtonLabel }: HeaderProps) {
+export function Header({ title, subtitle, onAddClick, addButtonLabel, action }: HeaderProps) {
   return (
     <header className="flex items-center justify-between mb-8">
       <div>
@@ -33,6 +34,9 @@ export function Header({ title, subtitle, onAddClick, addButtonLabel }: HeaderPr
           <Bell className="w-5 h-5 text-muted-foreground" />
           <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
         </button>
+
+        {/* Custom Action */}
+        {action}
 
         {/* Add Button */}
         {onAddClick && (

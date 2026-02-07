@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
+import { Button } from '@/components/ui/button';
 import { useActivities } from '@/hooks/useActivities';
 import { useLeads } from '@/hooks/useLeads';
 import { ActivityType } from '@/types/crm';
-import { Phone, MessageCircle, Mail, FileText, StickyNote, User, Loader2 } from 'lucide-react';
+import { Phone, MessageCircle, Mail, FileText, StickyNote, User, Loader2, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { AddActivityModal } from '@/components/activities/AddActivityModal';
 
 const activityIcons = {
   call: Phone,
@@ -34,6 +36,7 @@ const activityLabels = {
 
 export default function Conversations() {
   const [filter, setFilter] = useState<ActivityType | 'all'>('all');
+  const [activityModalOpen, setActivityModalOpen] = useState(false);
   const { data: activities = [], isLoading: activitiesLoading } = useActivities();
   const { data: leads = [], isLoading: leadsLoading } = useLeads();
 
@@ -66,6 +69,12 @@ export default function Conversations() {
       <Header 
         title="Atendimentos" 
         subtitle="Histórico de todas as interações"
+        action={
+          <Button onClick={() => setActivityModalOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nova Atividade
+          </Button>
+        }
       />
 
       {/* Filter Buttons */}
@@ -94,7 +103,11 @@ export default function Conversations() {
       {/* Activity Timeline */}
       {sortedActivities.length === 0 ? (
         <div className="text-center py-12 bg-card rounded-xl">
-          <p className="text-muted-foreground">Nenhuma atividade registrada ainda.</p>
+          <p className="text-muted-foreground mb-4">Nenhuma atividade registrada ainda.</p>
+          <Button onClick={() => setActivityModalOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Registrar primeira atividade
+          </Button>
         </div>
       ) : (
         <div className="space-y-4">
@@ -151,6 +164,11 @@ export default function Conversations() {
           })}
         </div>
       )}
+
+      <AddActivityModal
+        open={activityModalOpen}
+        onOpenChange={setActivityModalOpen}
+      />
     </MainLayout>
   );
 }

@@ -1,14 +1,22 @@
+import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
-import { useLeads } from '@/hooks/useLeads';
+import { useLeads, useUpdateLead } from '@/hooks/useLeads';
 import { Calendar, Clock, Phone, Mail, CheckCircle, Loader2 } from 'lucide-react';
 import { format, isToday, isTomorrow, isPast, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Lead } from '@/types/crm';
+import { Lead, ActivityType } from '@/types/crm';
+import { AddActivityModal } from '@/components/activities/AddActivityModal';
+import { toast } from '@/hooks/use-toast';
 
 export default function FollowUps() {
   const { data: leads = [], isLoading } = useLeads();
+  const updateLead = useUpdateLead();
   const leadsWithFollowUp = leads.filter(lead => lead.nextFollowUp);
+
+  const [activityModalOpen, setActivityModalOpen] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<Lead | undefined>();
+  const [selectedActivityType, setSelectedActivityType] = useState<ActivityType>('call');
 
   const categorizeFollowUps = () => {
     const today: Lead[] = [];
@@ -34,6 +42,21 @@ export default function FollowUps() {
   };
 
   const { today, tomorrow, thisWeek, overdue } = categorizeFollowUps();
+
+  const handleOpenActivityModal = (lead: Lead, type: ActivityType) => {
+    setSelectedLead(lead);
+    setSelectedActivityType(type);
+    setActivityModalOpen(true);
+  };
+
+  const handleMarkComplete = async (lead: Lead) => {
+    try {
+      await updateLead.mutateAsync({ id: lead.id, nextFollowUp: null });
+      toast({ title: 'Follow-up concluído!', description: `Retorno de ${lead.name} marcado como realizado.` });
+    } catch (error) {
+      // Error handled by mutation hook
+    }
+  };
 
   const FollowUpCard = ({ lead, isOverdue = false }: { lead: Lead, isOverdue?: boolean }) => (
     <div className={`bg-card rounded-xl p-5 shadow-card hover:shadow-card-hover transition-all duration-300 ${isOverdue ? 'border-l-4 border-destructive' : ''}`}>
@@ -68,16 +91,30 @@ export default function FollowUps() {
       </div>
 
       <div className="flex gap-2">
-        <button className="flex-1 btn-primary text-sm py-2">
+        <button 
+          className="flex-1 btn-primary text-sm py-2"
+          onClick={() => handleOpenActivityModal(lead, 'call')}
+        >
           <Phone className="w-4 h-4" />
           Ligar
         </button>
-        <button className="flex-1 btn-secondary text-sm py-2">
+        <button 
+          className="flex-1 btn-secondary text-sm py-2"
+          onClick={() => handleOpenActivityModal(lead, 'email')}
+        >
           <Mail className="w-4 h-4" />
           E-mail
         </button>
-        <button className="p-2 rounded-lg bg-success/10 text-success hover:bg-success/20 transition-colors">
-          <CheckCircle className="w-5 h-5" />
+        <button 
+          className="p-2 rounded-lg bg-success/10 text-success hover:bg-success/20 transition-colors"
+          onClick={() => handleMarkComplete(lead)}
+          disabled={updateLead.isPending}
+        >
+          {updateLead.isPending ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <CheckCircle className="w-5 h-5" />
+          )}
         </button>
       </div>
     </div>
@@ -130,6 +167,13 @@ export default function FollowUps() {
       <Section title="Hoje" leads={today} />
       <Section title="Amanhã" leads={tomorrow} />
       <Section title="Esta Semana" leads={thisWeek} />
+
+      <AddActivityModal
+        open={activityModalOpen}
+        onOpenChange={setActivityModalOpen}
+        preSelectedLead={selectedLead}
+        preSelectedType={selectedActivityType}
+      />
     </MainLayout>
   );
 }
