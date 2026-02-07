@@ -117,6 +117,16 @@ export default function FollowUps() {
   };
 
   const handleMarkComplete = async (lead: Lead) => {
+    // Validate: cannot complete a follow-up scheduled for a future date
+    if (lead.nextFollowUp && !isToday(lead.nextFollowUp) && !isPast(lead.nextFollowUp)) {
+      toast({ 
+        title: 'Não é possível concluir', 
+        description: `Este follow-up está agendado para ${format(lead.nextFollowUp, "dd/MM/yyyy", { locale: ptBR })}. Aguarde a data ou reagende.`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
     try {
       // Register activity in history
       const followUpDate = lead.nextFollowUp 
@@ -134,6 +144,10 @@ export default function FollowUps() {
     } catch (error) {
       // Error handled by mutation hook
     }
+  };
+
+  const isFutureFollowUp = (lead: Lead) => {
+    return lead.nextFollowUp && !isToday(lead.nextFollowUp) && !isPast(lead.nextFollowUp);
   };
 
   const FollowUpCard = ({ lead, isOverdue = false }: { lead: Lead, isOverdue?: boolean }) => (
@@ -186,7 +200,11 @@ export default function FollowUps() {
         <Tooltip>
           <TooltipTrigger asChild>
             <button 
-              className="p-2 rounded-lg bg-success/10 text-success hover:bg-success/20 transition-colors"
+              className={`p-2 rounded-lg transition-colors ${
+                isFutureFollowUp(lead) 
+                  ? 'bg-muted text-muted-foreground cursor-not-allowed' 
+                  : 'bg-success/10 text-success hover:bg-success/20'
+              }`}
               onClick={() => handleMarkComplete(lead)}
               disabled={updateLead.isPending || createActivity.isPending}
             >
@@ -198,7 +216,7 @@ export default function FollowUps() {
             </button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Concluir follow-up</p>
+            <p>{isFutureFollowUp(lead) ? 'Aguarde a data do follow-up' : 'Concluir follow-up'}</p>
           </TooltipContent>
         </Tooltip>
       </div>
