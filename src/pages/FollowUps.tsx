@@ -3,8 +3,9 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useLeads, useUpdateLead } from '@/hooks/useLeads';
-import { useActivities } from '@/hooks/useActivities';
+import { useActivities, useCreateActivity } from '@/hooks/useActivities';
 import { Calendar, Clock, Phone, Mail, CheckCircle, Loader2, Plus, MessageCircle, FileText, StickyNote, Search } from 'lucide-react';
 import { format, isToday, isTomorrow, isPast, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -40,6 +41,7 @@ export default function FollowUps() {
   const { data: leads = [], isLoading: leadsLoading } = useLeads();
   const { data: activities = [], isLoading: activitiesLoading } = useActivities();
   const updateLead = useUpdateLead();
+  const createActivity = useCreateActivity();
   const leadsWithFollowUp = leads.filter(lead => lead.nextFollowUp);
 
   const [activityModalOpen, setActivityModalOpen] = useState(false);
@@ -116,6 +118,17 @@ export default function FollowUps() {
 
   const handleMarkComplete = async (lead: Lead) => {
     try {
+      // Register activity in history
+      const followUpDate = lead.nextFollowUp 
+        ? format(lead.nextFollowUp, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+        : '';
+      await createActivity.mutateAsync({
+        leadId: lead.id,
+        type: 'note',
+        description: `Follow-up concluído${followUpDate ? ` (agendado para ${followUpDate})` : ''}`,
+      });
+      
+      // Clear the follow-up
       await updateLead.mutateAsync({ id: lead.id, nextFollowUp: null });
       toast({ title: 'Follow-up concluído!', description: `Retorno de ${lead.name} marcado como realizado.` });
     } catch (error) {
@@ -170,17 +183,24 @@ export default function FollowUps() {
           <Mail className="w-4 h-4" />
           E-mail
         </button>
-        <button 
-          className="p-2 rounded-lg bg-success/10 text-success hover:bg-success/20 transition-colors"
-          onClick={() => handleMarkComplete(lead)}
-          disabled={updateLead.isPending}
-        >
-          {updateLead.isPending ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
-            <CheckCircle className="w-5 h-5" />
-          )}
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button 
+              className="p-2 rounded-lg bg-success/10 text-success hover:bg-success/20 transition-colors"
+              onClick={() => handleMarkComplete(lead)}
+              disabled={updateLead.isPending || createActivity.isPending}
+            >
+              {(updateLead.isPending || createActivity.isPending) ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <CheckCircle className="w-5 h-5" />
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Concluir follow-up</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );
