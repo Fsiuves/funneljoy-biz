@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useLeads, useUpdateLead } from '@/hooks/useLeads';
 import { useActivities } from '@/hooks/useActivities';
-import { Calendar, Clock, Phone, Mail, CheckCircle, Loader2, Plus, MessageCircle, FileText, StickyNote, User } from 'lucide-react';
+import { Calendar, Clock, Phone, Mail, CheckCircle, Loader2, Plus, MessageCircle, FileText, StickyNote, Search } from 'lucide-react';
 import { format, isToday, isTomorrow, isPast, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Lead, ActivityType } from '@/types/crm';
@@ -46,6 +46,7 @@ export default function FollowUps() {
   const [selectedLead, setSelectedLead] = useState<Lead | undefined>();
   const [selectedActivityType, setSelectedActivityType] = useState<ActivityType>('call');
   const [historyFilter, setHistoryFilter] = useState<ActivityType | 'all'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const categorizeFollowUps = () => {
     const today: Lead[] = [];
@@ -85,9 +86,23 @@ export default function FollowUps() {
     return leads.find(lead => lead.id === leadId);
   };
 
-  const filteredActivities = historyFilter === 'all' 
-    ? activities 
-    : activities.filter(a => a.type === historyFilter);
+  const filteredActivities = activities.filter(activity => {
+    // Filter by type
+    if (historyFilter !== 'all' && activity.type !== historyFilter) return false;
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const lead = getLeadById(activity.leadId);
+      const searchLower = searchQuery.toLowerCase();
+      const matchesDescription = activity.description.toLowerCase().includes(searchLower);
+      const matchesLeadName = lead?.name.toLowerCase().includes(searchLower);
+      const matchesCompany = lead?.company?.toLowerCase().includes(searchLower);
+      
+      if (!matchesDescription && !matchesLeadName && !matchesCompany) return false;
+    }
+    
+    return true;
+  });
 
   const sortedActivities = [...filteredActivities].sort(
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
@@ -238,6 +253,20 @@ export default function FollowUps() {
         </TabsContent>
 
         <TabsContent value="history">
+          {/* Search and Filter */}
+          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Buscar por lead, empresa ou descrição..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="input-field pl-10 w-full"
+              />
+            </div>
+          </div>
+          
           {/* Filter Buttons */}
           <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
             <button 
