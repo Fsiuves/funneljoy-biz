@@ -16,7 +16,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
   { icon: Users, label: 'Leads', path: '/leads' },
   { icon: Kanban, label: 'Funil de Vendas', path: '/funnel' },
-  { icon: Calendar, label: 'Follow-ups', path: '/followups' },
+  { icon: Calendar, label: 'Follow-Up', path: '/followups' },
   { icon: BarChart3, label: 'Relatórios', path: '/reports' },
   { icon: Settings, label: 'Configurações', path: '/settings' },
 ];
