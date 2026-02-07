@@ -224,7 +224,7 @@ export default function FollowUps() {
   return (
     <MainLayout>
       <Header 
-        title="Follow-ups" 
+        title="Follow-Up" 
         subtitle="Gerencie seus retornos e histórico de atividades"
         action={
           <Button onClick={() => handleOpenActivityModal()}>
