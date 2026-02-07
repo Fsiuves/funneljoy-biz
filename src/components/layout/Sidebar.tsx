@@ -7,7 +7,6 @@ import {
   BarChart3,
   Settings,
   UserCircle,
-  MessageSquare,
   LogOut,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -18,7 +17,6 @@ const menuItems = [
   { icon: Users, label: 'Leads', path: '/leads' },
   { icon: Kanban, label: 'Funil de Vendas', path: '/funnel' },
   { icon: Calendar, label: 'Follow-ups', path: '/followups' },
-  { icon: MessageSquare, label: 'Atendimentos', path: '/conversations' },
   { icon: BarChart3, label: 'Relatórios', path: '/reports' },
   { icon: Settings, label: 'Configurações', path: '/settings' },
 ];

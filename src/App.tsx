@@ -8,7 +8,6 @@ import Index from "./pages/Index";
 import Leads from "./pages/Leads";
 import Funnel from "./pages/Funnel";
 import FollowUps from "./pages/FollowUps";
-import Conversations from "./pages/Conversations";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
@@ -34,7 +33,6 @@ const App = () => (
           <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
           <Route path="/funnel" element={<ProtectedRoute><Funnel /></ProtectedRoute>} />
           <Route path="/followups" element={<ProtectedRoute><FollowUps /></ProtectedRoute>} />
-          <Route path="/conversations" element={<ProtectedRoute><Conversations /></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
