@@ -51,6 +51,7 @@ export default function FollowUps() {
     const today: Lead[] = [];
     const tomorrow: Lead[] = [];
     const thisWeek: Lead[] = [];
+    const upcoming: Lead[] = [];
     const overdue: Lead[] = [];
 
     leadsWithFollowUp.forEach(lead => {
@@ -64,13 +65,21 @@ export default function FollowUps() {
         tomorrow.push(lead);
       } else if (lead.nextFollowUp <= addDays(new Date(), 7)) {
         thisWeek.push(lead);
+      } else {
+        upcoming.push(lead);
       }
     });
 
-    return { today, tomorrow, thisWeek, overdue };
+    // Sort upcoming by date
+    upcoming.sort((a, b) => {
+      if (!a.nextFollowUp || !b.nextFollowUp) return 0;
+      return a.nextFollowUp.getTime() - b.nextFollowUp.getTime();
+    });
+
+    return { today, tomorrow, thisWeek, upcoming, overdue };
   };
 
-  const { today, tomorrow, thisWeek, overdue } = categorizeFollowUps();
+  const { today, tomorrow, thisWeek, upcoming, overdue } = categorizeFollowUps();
 
   const getLeadById = (leadId: string) => {
     return leads.find(lead => lead.id === leadId);
@@ -223,6 +232,9 @@ export default function FollowUps() {
           <Section title="Hoje" leads={today} />
           <Section title="Amanhã" leads={tomorrow} />
           <Section title="Esta Semana" leads={thisWeek} />
+          {upcoming.length > 0 && (
+            <Section title="Próximas Semanas" leads={upcoming} />
+          )}
         </TabsContent>
 
         <TabsContent value="history">
@@ -289,23 +301,26 @@ export default function FollowUps() {
                         </div>
                         
                         {lead && (
-                          <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border">
-                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                              <span className="text-xs font-semibold text-primary">
-                                {lead.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                              </span>
+                          <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                <span className="text-xs font-semibold text-primary">
+                                  {lead.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                                </span>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-foreground">{lead.name}</p>
+                                <p className="text-xs text-muted-foreground">{lead.company}</p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="text-sm font-medium text-foreground">{lead.name}</p>
-                              <p className="text-xs text-muted-foreground">{lead.company}</p>
-                            </div>
+                            {lead.nextFollowUp && (
+                              <div className="flex items-center gap-1.5 text-xs text-primary bg-primary/10 px-2 py-1 rounded-full">
+                                <Calendar className="w-3 h-3" />
+                                <span>Próximo: {format(lead.nextFollowUp, "dd/MM/yyyy", { locale: ptBR })}</span>
+                              </div>
+                            )}
                           </div>
                         )}
-
-                        <div className="flex items-center gap-2 mt-3 text-sm text-muted-foreground">
-                          <User className="w-4 h-4" />
-                          <span>{activity.createdBy}</span>
-                        </div>
                       </div>
                     </div>
                   </div>
