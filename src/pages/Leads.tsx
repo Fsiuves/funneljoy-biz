@@ -17,9 +17,21 @@ export default function Leads() {
   const createLead = useCreateLead();
   const deleteLead = useDeleteLead();
 
+  const filteredLeads = leads.filter((lead) => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    const phoneDigits = searchTerm.replace(/\D/g, '');
+    return (
+      lead.name.toLowerCase().includes(term) ||
+      lead.email.toLowerCase().includes(term) ||
+      (lead.company && lead.company.toLowerCase().includes(term)) ||
+      (phoneDigits && lead.phone.includes(phoneDigits))
+    );
+  });
+
   const handleAddLead = (leadData: {
     name: string;
-    email: string;
+    email?: string;
     phone: string;
     company?: string;
     source: LeadSource;
