@@ -95,6 +95,18 @@ export default function Leads() {
         addButtonLabel="Novo Lead"
       />
 
+      {/* Search */}
+      <div className="mb-6 relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <input
+          type="text"
+          placeholder="Buscar por nome, telefone, empresa..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="input-field pl-10 w-full"
+        />
+      </div>
+
       {/* Table */}
       <div className="bg-card rounded-xl shadow-card overflow-hidden animate-fade-in">
         {leads.length === 0 ? (
