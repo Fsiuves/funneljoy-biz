@@ -24,7 +24,7 @@ interface LeadRow {
 const mapLeadFromDb = (row: LeadRow): Lead => ({
   id: row.id,
   name: row.name,
-  email: row.email,
+  email: row.email || undefined,
   phone: row.phone,
   company: row.company || undefined,
   source: row.source as LeadSource,

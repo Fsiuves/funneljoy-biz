@@ -23,7 +23,7 @@ export default function Leads() {
     const phoneDigits = searchTerm.replace(/\D/g, '');
     return (
       lead.name.toLowerCase().includes(term) ||
-      lead.email.toLowerCase().includes(term) ||
+      (lead.email && lead.email.toLowerCase().includes(term)) ||
       (lead.company && lead.company.toLowerCase().includes(term)) ||
       (phoneDigits && lead.phone.includes(phoneDigits))
     );
@@ -164,10 +164,12 @@ export default function Leads() {
                           <Phone className="w-3.5 h-3.5 text-muted-foreground" />
                           {lead.phone}
                         </p>
+                        {lead.email && (
                         <p className="text-sm text-foreground flex items-center gap-2">
                           <Mail className="w-3.5 h-3.5 text-muted-foreground" />
                           {lead.email}
                         </p>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
