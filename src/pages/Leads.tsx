@@ -134,7 +134,7 @@ export default function Leads() {
                 </tr>
               </thead>
               <tbody>
-                {leads.map((lead, index) => (
+                {filteredLeads.map((lead, index) => (
                   <tr 
                     key={lead.id} 
                     className="border-b border-border hover:bg-muted/30 transition-colors animate-slide-up"

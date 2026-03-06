@@ -87,7 +87,7 @@ export function useCreateLead() {
         .from('leads')
         .insert({
           name: lead.name,
-          email: lead.email,
+          email: lead.email || '',
           phone: lead.phone,
           company: lead.company || null,
           source: lead.source,

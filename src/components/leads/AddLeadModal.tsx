@@ -130,11 +130,10 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading }: AddLeadModal
 
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
-                E-mail *
+                E-mail
               </label>
               <input
                 type="email"
-                required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="input-field"
