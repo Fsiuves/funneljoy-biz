@@ -71,7 +71,7 @@ export function useCreateLead() {
   return useMutation({
     mutationFn: async (lead: {
       name: string;
-      email: string;
+      email?: string;
       phone: string;
       company?: string;
       source: LeadSource;
