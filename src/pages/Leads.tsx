@@ -23,7 +23,7 @@ export default function Leads() {
     const phoneDigits = searchTerm.replace(/\D/g, '');
     return (
       lead.name.toLowerCase().includes(term) ||
-      lead.email.toLowerCase().includes(term) ||
+      (lead.email && lead.email.toLowerCase().includes(term)) ||
       (lead.company && lead.company.toLowerCase().includes(term)) ||
       (phoneDigits && lead.phone.includes(phoneDigits))
     );
