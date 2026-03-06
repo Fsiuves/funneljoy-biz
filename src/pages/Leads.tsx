@@ -4,7 +4,7 @@ import { Header } from '@/components/layout/Header';
 import { AddLeadModal } from '@/components/leads/AddLeadModal';
 import { useLeads, useCreateLead, useDeleteLead } from '@/hooks/useLeads';
 import { LeadSource, LEAD_STAGES, LEAD_SOURCES } from '@/types/crm';
-import { Phone, Mail, Building2, MoreHorizontal, Eye, Edit, Trash2, Loader2 } from 'lucide-react';
+import { Phone, Mail, Building2, MoreHorizontal, Eye, Edit, Trash2, Loader2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
