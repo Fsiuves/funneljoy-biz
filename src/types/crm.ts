@@ -7,7 +7,7 @@ export type ActivityType = 'call' | 'whatsapp' | 'email' | 'meeting' | 'note';
 export interface Lead {
   id: string;
   name: string;
-  email: string;
+  email?: string;
   phone: string;
   company?: string;
   source: LeadSource;
