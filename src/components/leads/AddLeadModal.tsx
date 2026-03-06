@@ -8,7 +8,7 @@ interface AddLeadModalProps {
   onClose: () => void;
   onAdd: (lead: {
     name: string;
-    email: string;
+    email?: string;
     phone: string;
     company?: string;
     source: LeadSource;
@@ -66,6 +66,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading }: AddLeadModal
     const numericValue = formData.value ? parseCurrency(formData.value) : undefined;
     onAdd({
       ...formData,
+      email: formData.email || undefined,
       phone: formData.phone.replace(/\D/g, ''), // Send only numbers
       company: formData.company || undefined,
       value: numericValue,
@@ -129,11 +130,10 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading }: AddLeadModal
 
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
-                E-mail *
+                E-mail
               </label>
               <input
                 type="email"
-                required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="input-field"

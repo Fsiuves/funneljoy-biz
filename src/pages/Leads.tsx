@@ -4,21 +4,34 @@ import { Header } from '@/components/layout/Header';
 import { AddLeadModal } from '@/components/leads/AddLeadModal';
 import { useLeads, useCreateLead, useDeleteLead } from '@/hooks/useLeads';
 import { LeadSource, LEAD_STAGES, LEAD_SOURCES } from '@/types/crm';
-import { Phone, Mail, Building2, MoreHorizontal, Eye, Edit, Trash2, Loader2 } from 'lucide-react';
+import { Phone, Mail, Building2, MoreHorizontal, Eye, Edit, Trash2, Loader2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export default function Leads() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   
   const { data: leads = [], isLoading } = useLeads();
   const createLead = useCreateLead();
   const deleteLead = useDeleteLead();
 
+  const filteredLeads = leads.filter((lead) => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    const phoneDigits = searchTerm.replace(/\D/g, '');
+    return (
+      lead.name.toLowerCase().includes(term) ||
+      lead.email.toLowerCase().includes(term) ||
+      (lead.company && lead.company.toLowerCase().includes(term)) ||
+      (phoneDigits && lead.phone.includes(phoneDigits))
+    );
+  });
+
   const handleAddLead = (leadData: {
     name: string;
-    email: string;
+    email?: string;
     phone: string;
     company?: string;
     source: LeadSource;
@@ -82,9 +95,21 @@ export default function Leads() {
         addButtonLabel="Novo Lead"
       />
 
+      {/* Search */}
+      <div className="mb-6 relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <input
+          type="text"
+          placeholder="Buscar por nome, telefone, empresa..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="input-field pl-10 w-full"
+        />
+      </div>
+
       {/* Table */}
       <div className="bg-card rounded-xl shadow-card overflow-hidden animate-fade-in">
-        {leads.length === 0 ? (
+        {filteredLeads.length === 0 ? (
           <div className="p-12 text-center">
             <p className="text-muted-foreground">Nenhum lead cadastrado ainda.</p>
             <button
@@ -109,7 +134,7 @@ export default function Leads() {
                 </tr>
               </thead>
               <tbody>
-                {leads.map((lead, index) => (
+                {filteredLeads.map((lead, index) => (
                   <tr 
                     key={lead.id} 
                     className="border-b border-border hover:bg-muted/30 transition-colors animate-slide-up"

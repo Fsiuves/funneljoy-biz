@@ -71,7 +71,7 @@ export function useCreateLead() {
   return useMutation({
     mutationFn: async (lead: {
       name: string;
-      email: string;
+      email?: string;
       phone: string;
       company?: string;
       source: LeadSource;
@@ -87,7 +87,7 @@ export function useCreateLead() {
         .from('leads')
         .insert({
           name: lead.name,
-          email: lead.email,
+          email: lead.email || '',
           phone: lead.phone,
           company: lead.company || null,
           source: lead.source,
