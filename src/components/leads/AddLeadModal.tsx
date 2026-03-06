@@ -66,6 +66,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading }: AddLeadModal
     const numericValue = formData.value ? parseCurrency(formData.value) : undefined;
     onAdd({
       ...formData,
+      email: formData.email || undefined,
       phone: formData.phone.replace(/\D/g, ''), // Send only numbers
       company: formData.company || undefined,
       value: numericValue,
