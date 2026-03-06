@@ -11,6 +11,7 @@ import { ptBR } from 'date-fns/locale';
 export default function Leads() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   
   const { data: leads = [], isLoading } = useLeads();
   const createLead = useCreateLead();
