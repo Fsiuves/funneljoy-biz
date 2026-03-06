@@ -8,7 +8,7 @@ interface AddLeadModalProps {
   onClose: () => void;
   onAdd: (lead: {
     name: string;
-    email: string;
+    email?: string;
     phone: string;
     company?: string;
     source: LeadSource;
