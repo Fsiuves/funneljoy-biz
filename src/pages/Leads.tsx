@@ -109,7 +109,7 @@ export default function Leads() {
 
       {/* Table */}
       <div className="bg-card rounded-xl shadow-card overflow-hidden animate-fade-in">
-        {leads.length === 0 ? (
+        {filteredLeads.length === 0 ? (
           <div className="p-12 text-center">
             <p className="text-muted-foreground">Nenhum lead cadastrado ainda.</p>
             <button
