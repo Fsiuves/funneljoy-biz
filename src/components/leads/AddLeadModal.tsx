@@ -66,6 +66,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading }: AddLeadModal
     const numericValue = formData.value ? parseCurrency(formData.value) : undefined;
     onAdd({
       ...formData,
+      name: formData.name || 'Sem nome',
       email: formData.email || undefined,
       phone: formData.phone.replace(/\D/g, ''), // Send only numbers
       company: formData.company || undefined,
@@ -115,11 +116,10 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading }: AddLeadModal
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-sm font-medium text-foreground mb-2">
-                Nome *
+                Nome
               </label>
               <input
                 type="text"
-                required
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="input-field"
