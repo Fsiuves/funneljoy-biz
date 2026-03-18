@@ -115,11 +115,10 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading }: AddLeadModal
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-sm font-medium text-foreground mb-2">
-                Nome *
+                Nome
               </label>
               <input
                 type="text"
-                required
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="input-field"
