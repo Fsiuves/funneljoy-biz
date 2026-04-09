@@ -1,5 +1,5 @@
-import { ReactNode, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { ReactNode } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenantCheck } from '@/hooks/useTenantCheck';
 import { Loader2 } from 'lucide-react';
@@ -10,31 +10,11 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requireTenant = true }: ProtectedRouteProps) {
-  const { isAuthenticated, loading: authLoading } = useAuth();
-  const { hasTenant, loading: tenantLoading } = useTenantCheck();
-  const navigate = useNavigate();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const { hasTenant, loading: tenantLoading } = useTenantCheck(user, authLoading);
   const location = useLocation();
 
-  const loading = authLoading || (isAuthenticated && tenantLoading);
-
-  useEffect(() => {
-    if (authLoading) return;
-
-    // Not authenticated -> go to auth
-    if (!isAuthenticated) {
-      navigate('/auth');
-      return;
-    }
-
-    // Authenticated but checking tenant
-    if (tenantLoading) return;
-
-    // Authenticated but no tenant -> go to onboarding (unless already there)
-    if (requireTenant && hasTenant === false && location.pathname !== '/onboarding') {
-      navigate('/onboarding');
-      return;
-    }
-  }, [isAuthenticated, authLoading, hasTenant, tenantLoading, requireTenant, navigate, location.pathname]);
+  const loading = authLoading || (isAuthenticated && requireTenant && tenantLoading);
 
   if (loading) {
     return (
@@ -45,12 +25,11 @@ export function ProtectedRoute({ children, requireTenant = true }: ProtectedRout
   }
 
   if (!isAuthenticated) {
-    return null;
+    return <Navigate to="/auth" replace state={{ from: location }} />;
   }
 
-  // If tenant is required but not present, don't render
-  if (requireTenant && hasTenant === false) {
-    return null;
+  if (requireTenant && hasTenant === false && location.pathname !== '/onboarding') {
+    return <Navigate to="/onboarding" replace />;
   }
 
   return <>{children}</>;
