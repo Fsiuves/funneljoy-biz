@@ -59,6 +59,8 @@ Deno.serve(async (req) => {
     }
 
     // Step 2: Create user via Admin API (does NOT affect caller's session)
+    let userId: string;
+
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -67,17 +69,36 @@ Deno.serve(async (req) => {
     });
 
     if (createError) {
-      return new Response(JSON.stringify({ error: createError.message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    if (!newUser.user) {
+      // If user already exists, find them and link to this tenant
+      if (createError.message.includes("already been registered")) {
+        const { data: listData, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+        if (listError) {
+          return new Response(JSON.stringify({ error: "Erro ao buscar usuário existente" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        const existingUser = listData.users.find((u: any) => u.email === email.toLowerCase().trim());
+        if (!existingUser) {
+          return new Response(JSON.stringify({ error: "Usuário não encontrado" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        userId = existingUser.id;
+      } else {
+        return new Response(JSON.stringify({ error: createError.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else if (!newUser.user) {
       return new Response(JSON.stringify({ error: "failed_to_create_user" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    } else {
+      userId = newUser.user.id;
     }
 
     // Step 3: Complete setup (profile + role) via RPC with caller's context
