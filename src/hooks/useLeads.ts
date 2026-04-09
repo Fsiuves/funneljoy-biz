@@ -60,7 +60,33 @@ export function useLeads() {
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return (data as LeadRow[]).map(mapLeadFromDb);
+      const leads = (data as LeadRow[]).map(mapLeadFromDb);
+
+      // Fetch profile names for created_by and assigned_to
+      const userIds = new Set<string>();
+      data?.forEach((row: LeadRow) => {
+        if (row.created_by) userIds.add(row.created_by);
+        if (row.assigned_to) userIds.add(row.assigned_to);
+      });
+
+      if (userIds.size > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, name, email')
+          .in('id', Array.from(userIds));
+
+        const profileMap = new Map(
+          (profiles || []).map(p => [p.id, p.name || p.email])
+        );
+
+        leads.forEach((lead, i) => {
+          const row = data![i] as LeadRow;
+          lead.createdByName = profileMap.get(row.created_by) || undefined;
+          lead.assignedToName = row.assigned_to ? profileMap.get(row.assigned_to) || undefined : undefined;
+        });
+      }
+
+      return leads;
     },
   });
 }

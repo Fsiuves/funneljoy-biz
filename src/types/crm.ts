@@ -16,6 +16,8 @@ export interface Lead {
   createdAt: Date;
   updatedAt: Date;
   assignedTo?: string;
+  assignedToName?: string;
+  createdByName?: string;
   nextFollowUp?: Date;
   tags?: string[];
 }
