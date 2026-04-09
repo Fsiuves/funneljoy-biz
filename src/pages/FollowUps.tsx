@@ -164,11 +164,18 @@ export default function FollowUps() {
             <p className="text-sm text-muted-foreground">{lead.company}</p>
           </div>
         </div>
-        {isOverdue && (
-          <span className="px-2 py-1 text-xs font-medium rounded-full bg-destructive/10 text-destructive">
-            Atrasado
-          </span>
-        )}
+        <div className="flex flex-col items-end gap-1">
+          {isOverdue && (
+            <span className="px-2 py-1 text-xs font-medium rounded-full bg-destructive/10 text-destructive">
+              Atrasado
+            </span>
+          )}
+          {(lead.assignedToName || lead.createdByName) && (
+            <span className="text-xs text-muted-foreground">
+              {lead.assignedToName || lead.createdByName}
+            </span>
+          )}
+        </div>
       </div>
       
       <div className="flex items-center gap-4 mb-4 text-sm text-muted-foreground">

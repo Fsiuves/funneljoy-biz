@@ -129,6 +129,7 @@ export default function Leads() {
                   <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Origem</th>
                   <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Etapa</th>
                   <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Valor</th>
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Responsável</th>
                   <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Data</th>
                   <th className="text-right px-6 py-4 text-sm font-semibold text-foreground">Ações</th>
                 </tr>
@@ -182,6 +183,11 @@ export default function Leads() {
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm font-medium text-foreground">{formatCurrency(lead.value)}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-foreground">
+                        {lead.assignedToName || lead.createdByName || '-'}
+                      </span>
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm text-muted-foreground">
