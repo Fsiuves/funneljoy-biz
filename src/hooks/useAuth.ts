@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -6,23 +6,28 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const initializedRef = useRef(false);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
-
-    // THEN check for existing session
+    // First restore session from storage
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+      initializedRef.current = true;
     });
+
+    // Then listen for subsequent auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        // Only update after initial session has been restored
+        if (initializedRef.current) {
+          setSession(session);
+          setUser(session?.user ?? null);
+          setLoading(false);
+        }
+      }
+    );
 
     return () => subscription.unsubscribe();
   }, []);
@@ -33,7 +38,6 @@ export function useAuth() {
   };
 
   const signUp = async (email: string, password: string, name?: string, companyName?: string) => {
-    // Ensure no stale session before signup
     await supabase.auth.signOut();
 
     const redirectUrl = `${window.location.origin}/`;
@@ -55,13 +59,10 @@ export function useAuth() {
       };
     }
 
-    // If email confirmation is required, no session will exist now.
-    // User needs to confirm email and login to complete tenant/profile creation.
     if (!data.session) {
       return { error: null, needsEmailConfirmation: true as const };
     }
 
-    // Set the session and validate it was applied correctly
     const { error: sessionError } = await supabase.auth.setSession({
       access_token: data.session.access_token,
       refresh_token: data.session.refresh_token,
@@ -71,7 +72,6 @@ export function useAuth() {
       return { error: sessionError, needsEmailConfirmation: false as const };
     }
 
-    // Double-check current user matches the new signup
     const { data: currentUser } = await supabase.auth.getUser();
     if (currentUser.user?.id !== data.user.id) {
       return {
@@ -80,7 +80,6 @@ export function useAuth() {
       };
     }
 
-    // Create tenant and profile after signup (requires authenticated session)
     const baseSlug = (companyName || 'minha-empresa')
       .toLowerCase()
       .trim()
@@ -90,7 +89,6 @@ export function useAuth() {
 
     const slug = `${baseSlug || 'empresa'}-${Date.now().toString(36)}`;
 
-    // Try to create tenant
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
       .insert({
@@ -102,8 +100,6 @@ export function useAuth() {
 
     if (tenantError) {
       console.error('Tenant creation error:', tenantError);
-      // Don't fail completely - user can complete onboarding later
-      // Return success but redirect to onboarding
       return { 
         error: null, 
         needsEmailConfirmation: false as const,
@@ -111,7 +107,6 @@ export function useAuth() {
       };
     }
 
-    // Try to create profile
     const { error: profileError } = await supabase.from('profiles').insert({
       id: data.user.id,
       email,
@@ -121,8 +116,6 @@ export function useAuth() {
 
     if (profileError) {
       console.error('Profile creation error:', profileError);
-      // Tenant was created but profile failed
-      // User can still use onboarding to fix this
       return { 
         error: null, 
         needsEmailConfirmation: false as const,
