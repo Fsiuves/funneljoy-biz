@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
 
     // Step 3: Complete setup (profile + role) via RPC with caller's context
     const { data: setupResult, error: setupError } = await supabaseCaller.rpc("complete_team_member_setup", {
-      _user_id: newUser.user.id,
+      _user_id: userId,
       _email: email,
       _name: name,
       _role: role || "sales",
@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, user_id: newUser.user.id }),
+      JSON.stringify({ success: true, user_id: userId }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
