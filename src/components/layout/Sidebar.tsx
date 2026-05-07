@@ -8,6 +8,7 @@ import {
   Settings,
   UserCircle,
   LogOut,
+  Zap,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenant } from '@/hooks/useTenant';
@@ -72,6 +73,21 @@ export function Sidebar() {
             </Link>
           );
         })}
+
+        {tenant?.pia_ativo && (
+          <div className="pt-3 mt-3 border-t border-sidebar-border">
+            <Link
+              to="/pia"
+              className={`sidebar-item ${location.pathname === '/pia' ? 'sidebar-item-active' : ''}`}
+            >
+              <Zap className="w-5 h-5" />
+              <span className="flex-1">P.I.A.</span>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sidebar-primary text-sidebar-primary-foreground">
+                IA
+              </span>
+            </Link>
+          </div>
+        )}
       </nav>
 
       {/* User Profile */}
