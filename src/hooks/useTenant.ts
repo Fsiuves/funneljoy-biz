@@ -13,6 +13,7 @@ interface Tenant {
   favicon_url?: string | null;
   primary_color?: string | null;
   secondary_color?: string | null;
+  pia_ativo?: boolean | null;
 }
 
 interface Profile {
