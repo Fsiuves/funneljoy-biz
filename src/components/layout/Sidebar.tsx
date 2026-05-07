@@ -33,7 +33,6 @@ export function Sidebar() {
     navigate('/auth');
   };
 
-  // Use system logo if available, fallback to company logo
   const logoUrl = tenant?.system_logo_url || tenant?.logo_url;
 
   return (
@@ -42,9 +41,9 @@ export function Sidebar() {
       <div className="p-6 border-b border-sidebar-border">
         {logoUrl ? (
           <div className="flex items-center gap-3">
-            <img 
-              src={logoUrl} 
-              alt={tenant?.name || 'Logo'} 
+            <img
+              src={logoUrl}
+              alt={tenant?.name || 'Logo'}
               className="h-10 w-auto max-w-[100px] object-contain"
             />
             <span className="text-lg font-bold text-sidebar-foreground">
@@ -60,7 +59,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {menuItems.map((item) => {
+        {menuItems.map(item => {
           const isActive = location.pathname === item.path;
           return (
             <Link
@@ -74,19 +73,20 @@ export function Sidebar() {
           );
         })}
 
-        {tenant?.pia_ativo && (
-          <div className="pt-3 mt-3 border-t border-sidebar-border">
-            <Link
-              to="/pia"
-              className={`sidebar-item ${location.pathname === '/pia' ? 'sidebar-item-active' : ''}`}
-            >
-              <Zap className="w-5 h-5" />
-              <span className="flex-1">P.I.A.</span>
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sidebar-primary text-sidebar-primary-foreground">
-                IA
-              </span>
-            </Link>
-          </div>
+        {/* P.I.A. — só aparece se tenant tiver pia_ativo = true */}
+        {(tenant as any)?.pia_ativo && (
+          <Link
+            to="/pia"
+            className={`sidebar-item mt-2 border border-sidebar-border ${
+              location.pathname === '/pia' ? 'sidebar-item-active' : ''
+            }`}
+          >
+            <Zap className="w-5 h-5 text-sidebar-primary" />
+            <span className="font-semibold">P.I.A.</span>
+            <span className="ml-auto text-xs bg-sidebar-primary/20 text-sidebar-primary px-1.5 py-0.5 rounded font-medium">
+              IA
+            </span>
+          </Link>
         )}
       </nav>
 
