@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Phone, MessageSquare, CheckCircle2, Clock, XCircle, Loader2, ChevronDown, ChevronUp, Target, Copy, Trash2 } from 'lucide-react';
+import { Phone, MessageSquare, CheckCircle2, Clock, XCircle, Loader2, ChevronDown, ChevronUp, Target, Copy, Trash2, Globe, Instagram, Pencil, Save, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const SUPABASE_PIA_URL = 'https://sjspfkzxyfipuamvbswd.supabase.co';
@@ -20,6 +20,8 @@ interface Prospect {
   qualificacao: string;
   data_criacao: string;
   data_ultimo_contato: string;
+  website?: string;
+  instagram?: string;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; icon: any; class: string }> = {
@@ -39,6 +41,9 @@ export function ProspectsTab() {
   const [filtroStatus, setFiltroStatus] = useState('todos');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editMsgs, setEditMsgs] = useState<{ msg_abordagem: string; msg_follow1: string; msg_follow2: string }>({ msg_abordagem: '', msg_follow1: '', msg_follow2: '' });
+  const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
   const carregar = async () => {
@@ -57,6 +62,39 @@ export function ProspectsTab() {
   };
 
   useEffect(() => { carregar(); }, []);
+
+  const iniciarEdicao = (p: Prospect) => {
+    setEditingId(p.id);
+    setEditMsgs({
+      msg_abordagem: p.msg_abordagem || '',
+      msg_follow1: p.msg_follow1 || '',
+      msg_follow2: p.msg_follow2 || '',
+    });
+  };
+
+  const salvarMensagens = async (id: string) => {
+    setSaving(true);
+    try {
+      const res = await fetch(`${SUPABASE_PIA_URL}/rest/v1/prospects?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: {
+          apikey: SUPABASE_PIA_KEY,
+          Authorization: `Bearer ${SUPABASE_PIA_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify(editMsgs),
+      });
+      if (!res.ok) throw new Error();
+      setProspects(prev => prev.map(p => p.id === id ? { ...p, ...editMsgs } : p));
+      setEditingId(null);
+      toast({ title: 'Mensagens atualizadas!' });
+    } catch {
+      toast({ title: 'Erro ao salvar mensagens', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const filtrados = prospects.filter(p => {
     const matchStatus = filtroStatus === 'todos' || p.status === filtroStatus;
@@ -128,6 +166,7 @@ export function ProspectsTab() {
                   <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Empresa</th>
                   <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Contato</th>
                   <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Nicho</th>
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Links</th>
                   <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Status</th>
                   <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Última resposta</th>
                   <th className="text-right px-6 py-4 text-sm font-semibold text-foreground">Ver</th>
@@ -161,6 +200,36 @@ export function ProspectsTab() {
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-sm text-foreground">{p.nicho}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            {p.website ? (
+                              <a
+                                href={p.website}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                                title={p.website}
+                              >
+                                <Globe className="w-4 h-4" />
+                              </a>
+                            ) : (
+                              <span className="p-1.5 text-muted-foreground/30"><Globe className="w-4 h-4" /></span>
+                            )}
+                            {p.instagram ? (
+                              <a
+                                href={p.instagram}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-pink-500 transition-colors"
+                                title={p.instagram}
+                              >
+                                <Instagram className="w-4 h-4" />
+                              </a>
+                            ) : (
+                              <span className="p-1.5 text-muted-foreground/30"><Instagram className="w-4 h-4" /></span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${sc.class}`}>
@@ -214,19 +283,48 @@ export function ProspectsTab() {
                       </tr>
                       {isExpanded && (
                         <tr key={`${p.id}-exp`} className="bg-muted/20 border-b border-border">
-                          <td colSpan={6} className="px-6 py-4">
+                          <td colSpan={7} className="px-6 py-4">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div className="bg-card rounded-lg p-4 border border-border">
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Análise do Negócio</p>
                                 <p className="text-sm text-foreground">{p.analise_lead || '—'}</p>
                               </div>
                               <div className="bg-card rounded-lg p-4 border border-border max-h-[400px] overflow-y-auto">
-                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Mensagens Geradas</p>
+                                <div className="flex items-center justify-between mb-2">
+                                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mensagens Geradas</p>
+                                  {editingId === p.id ? (
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={() => salvarMensagens(p.id)}
+                                        disabled={saving}
+                                        className="p-1 rounded hover:bg-success/10 text-success transition-colors disabled:opacity-50"
+                                        title="Salvar"
+                                      >
+                                        {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                      </button>
+                                      <button
+                                        onClick={() => setEditingId(null)}
+                                        className="p-1 rounded hover:bg-muted text-muted-foreground transition-colors"
+                                        title="Cancelar"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => iniciarEdicao(p)}
+                                      className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                                      title="Editar mensagens"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
                                 <div className="space-y-3">
                                   <div>
                                     <div className="flex items-center gap-2">
                                       <span className="text-xs text-primary font-medium">MSG 1 (Abordagem):</span>
-                                      {p.msg_abordagem && (
+                                      {editingId !== p.id && p.msg_abordagem && (
                                         <button
                                           onClick={() => {
                                             navigator.clipboard.writeText(p.msg_abordagem);
@@ -239,12 +337,20 @@ export function ProspectsTab() {
                                         </button>
                                       )}
                                     </div>
-                                    <p className="text-xs text-foreground mt-0.5">{p.msg_abordagem || '—'}</p>
+                                    {editingId === p.id ? (
+                                      <textarea
+                                        value={editMsgs.msg_abordagem}
+                                        onChange={e => setEditMsgs({ ...editMsgs, msg_abordagem: e.target.value })}
+                                        className="w-full mt-1 text-xs p-2 rounded border border-border bg-background text-foreground min-h-[80px]"
+                                      />
+                                    ) : (
+                                      <p className="text-xs text-foreground mt-0.5">{p.msg_abordagem || '—'}</p>
+                                    )}
                                   </div>
                                   <div>
                                     <div className="flex items-center gap-2">
                                       <span className="text-xs text-warning font-medium">MSG 2 (Follow-up):</span>
-                                      {p.msg_follow1 && (
+                                      {editingId !== p.id && p.msg_follow1 && (
                                         <button
                                           onClick={() => {
                                             navigator.clipboard.writeText(p.msg_follow1);
@@ -257,12 +363,20 @@ export function ProspectsTab() {
                                         </button>
                                       )}
                                     </div>
-                                    <p className="text-xs text-foreground mt-0.5">{p.msg_follow1 || '—'}</p>
+                                    {editingId === p.id ? (
+                                      <textarea
+                                        value={editMsgs.msg_follow1}
+                                        onChange={e => setEditMsgs({ ...editMsgs, msg_follow1: e.target.value })}
+                                        className="w-full mt-1 text-xs p-2 rounded border border-border bg-background text-foreground min-h-[80px]"
+                                      />
+                                    ) : (
+                                      <p className="text-xs text-foreground mt-0.5">{p.msg_follow1 || '—'}</p>
+                                    )}
                                   </div>
                                   <div>
                                     <div className="flex items-center gap-2">
                                       <span className="text-xs text-orange-500 font-medium">MSG 3 (Último toque):</span>
-                                      {p.msg_follow2 && (
+                                      {editingId !== p.id && p.msg_follow2 && (
                                         <button
                                           onClick={() => {
                                             navigator.clipboard.writeText(p.msg_follow2);
@@ -275,7 +389,15 @@ export function ProspectsTab() {
                                         </button>
                                       )}
                                     </div>
-                                    <p className="text-xs text-foreground mt-0.5">{p.msg_follow2 || '—'}</p>
+                                    {editingId === p.id ? (
+                                      <textarea
+                                        value={editMsgs.msg_follow2}
+                                        onChange={e => setEditMsgs({ ...editMsgs, msg_follow2: e.target.value })}
+                                        className="w-full mt-1 text-xs p-2 rounded border border-border bg-background text-foreground min-h-[80px]"
+                                      />
+                                    ) : (
+                                      <p className="text-xs text-foreground mt-0.5">{p.msg_follow2 || '—'}</p>
+                                    )}
                                   </div>
                                 </div>
                               </div>
