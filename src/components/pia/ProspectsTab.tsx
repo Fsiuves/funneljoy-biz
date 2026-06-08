@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Phone, MessageSquare, CheckCircle2, Clock, XCircle, Loader2, ChevronDown, ChevronUp, Target } from 'lucide-react';
+import { Phone, MessageSquare, CheckCircle2, Clock, XCircle, Loader2, ChevronDown, ChevronUp, Target, Copy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const SUPABASE_PIA_URL = 'https://sjspfkzxyfipuamvbswd.supabase.co';
