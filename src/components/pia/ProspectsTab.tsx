@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Phone, MessageSquare, CheckCircle2, Clock, XCircle, Loader2, ChevronDown, ChevronUp, Target } from 'lucide-react';
+import { Phone, MessageSquare, CheckCircle2, Clock, XCircle, Loader2, ChevronDown, ChevronUp, Target, Copy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const SUPABASE_PIA_URL = 'https://sjspfkzxyfipuamvbswd.supabase.co';
@@ -190,16 +190,62 @@ export function ProspectsTab() {
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Análise do Negócio</p>
                                 <p className="text-sm text-foreground">{p.analise_lead || '—'}</p>
                               </div>
-                              <div className="bg-card rounded-lg p-4 border border-border">
+                              <div className="bg-card rounded-lg p-4 border border-border max-h-[400px] overflow-y-auto">
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Mensagens Geradas</p>
-                                <div className="space-y-2">
+                                <div className="space-y-3">
                                   <div>
-                                    <span className="text-xs text-primary font-medium">MSG 1 (Abordagem):</span>
-                                    <p className="text-xs text-foreground mt-0.5 line-clamp-2">{p.msg_abordagem || '—'}</p>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-primary font-medium">MSG 1 (Abordagem):</span>
+                                      {p.msg_abordagem && (
+                                        <button
+                                          onClick={() => {
+                                            navigator.clipboard.writeText(p.msg_abordagem);
+                                            toast({ title: 'Mensagem copiada!' });
+                                          }}
+                                          className="p-1 rounded hover:bg-muted text-muted-foreground transition-colors"
+                                          title="Copiar mensagem"
+                                        >
+                                          <Copy className="w-3 h-3" />
+                                        </button>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-foreground mt-0.5">{p.msg_abordagem || '—'}</p>
                                   </div>
                                   <div>
-                                    <span className="text-xs text-warning font-medium">MSG 2 (Follow-up):</span>
-                                    <p className="text-xs text-foreground mt-0.5 line-clamp-2">{p.msg_follow1 || '—'}</p>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-warning font-medium">MSG 2 (Follow-up):</span>
+                                      {p.msg_follow1 && (
+                                        <button
+                                          onClick={() => {
+                                            navigator.clipboard.writeText(p.msg_follow1);
+                                            toast({ title: 'Mensagem copiada!' });
+                                          }}
+                                          className="p-1 rounded hover:bg-muted text-muted-foreground transition-colors"
+                                          title="Copiar mensagem"
+                                        >
+                                          <Copy className="w-3 h-3" />
+                                        </button>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-foreground mt-0.5">{p.msg_follow1 || '—'}</p>
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-orange-500 font-medium">MSG 3 (Último toque):</span>
+                                      {p.msg_follow2 && (
+                                        <button
+                                          onClick={() => {
+                                            navigator.clipboard.writeText(p.msg_follow2);
+                                            toast({ title: 'Mensagem copiada!' });
+                                          }}
+                                          className="p-1 rounded hover:bg-muted text-muted-foreground transition-colors"
+                                          title="Copiar mensagem"
+                                        >
+                                          <Copy className="w-3 h-3" />
+                                        </button>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-foreground mt-0.5">{p.msg_follow2 || '—'}</p>
                                   </div>
                                 </div>
                               </div>
