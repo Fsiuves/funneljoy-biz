@@ -48,6 +48,7 @@ const piaFetch = async (path: string, opts: RequestInit = {}) => {
 export function CampanhasTab() {
   const [campanhas, setCampanhas] = useState<Campanha[]>([]);
   const [loading, setLoading] = useState(true);
+  const [contagens, setContagens] = useState<Record<string, number>>({});
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [nicho, setNicho] = useState('');
@@ -61,11 +62,33 @@ export function CampanhasTab() {
   const carregarCampanhas = async () => {
     try {
       const data = await piaFetch('/campanhas?select=*&order=data_criacao.desc');
-      setCampanhas(data || []);
+      const arr: Campanha[] = data || [];
+      setCampanhas(arr);
+      await carregarContagens(arr);
     } catch {
       toast({ title: 'Erro ao carregar campanhas', variant: 'destructive' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const carregarContagens = async (arr: Campanha[]) => {
+    if (!arr.length) { setContagens({}); return; }
+    const uniqNichos = Array.from(new Set(arr.map(c => c.nicho)));
+    const uniqCidades = Array.from(new Set(arr.map(c => c.cidade)));
+    const enc = (s: string) => `"${s.replace(/"/g, '\\"')}"`;
+    try {
+      const data = await piaFetch(
+        `/prospects?select=nicho,cidade&nicho=in.(${uniqNichos.map(enc).join(',')})&cidade=in.(${uniqCidades.map(enc).join(',')})`
+      );
+      const map: Record<string, number> = {};
+      (data || []).forEach((p: { nicho: string; cidade: string }) => {
+        const k = `${p.nicho}|${p.cidade}`;
+        map[k] = (map[k] || 0) + 1;
+      });
+      setContagens(map);
+    } catch {
+      setContagens({});
     }
   };
 
@@ -247,6 +270,7 @@ export function CampanhasTab() {
               <tr className="border-b border-border bg-muted/50">
                 <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Nicho</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Cidade</th>
+                <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Prospects</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Status</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Criada em</th>
                 <th className="text-right px-6 py-4 text-sm font-semibold text-foreground">Ações</th>
@@ -255,6 +279,7 @@ export function CampanhasTab() {
             <tbody>
               {campanhas.map(camp => {
                 const sc = statusConfig[camp.status] || statusConfig.ativo;
+                const count = contagens[`${camp.nicho}|${camp.cidade}`] || 0;
                 return (
                   <tr key={camp.id} className="border-b border-border hover:bg-muted/30 transition-colors">
                     <td className="px-6 py-4">
@@ -270,6 +295,11 @@ export function CampanhasTab() {
                         <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
                         {camp.cidade}
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm font-medium text-foreground">
+                        {count > 0 ? count : <span className="text-muted-foreground font-normal">—</span>}
+                      </span>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${sc.bg}`}>
