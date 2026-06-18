@@ -227,7 +227,9 @@ export function ProspectsTab() {
                                 <p className="text-xs text-muted-foreground">{p.cidade}</p>
                                 {p.data_criacao && (
                                   <p className="text-xs text-muted-foreground mt-0.5">
-                                    Abordado em: {formatRelative(p.data_criacao)}
+                                    {p.status === 'novo' || p.status === 'pronto_para_envio'
+                                      ? `Criado em: ${formatRelative(p.data_criacao)}`
+                                      : `Abordado em: ${formatRelative(p.data_ultimo_contato || p.data_criacao)}`}
                                   </p>
                                 )}
                               </div>
@@ -449,7 +451,9 @@ export function ProspectsTab() {
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Qualificação SDR</p>
                                 {p.data_criacao && (
                                   <p className="text-xs text-muted-foreground mb-2">
-                                    Abordado em: {new Date(p.data_criacao).toLocaleDateString('pt-BR')} ({formatRelative(p.data_criacao)})
+                                    {p.status === 'novo' || p.status === 'pronto_para_envio'
+                                      ? `Criado em: ${new Date(p.data_criacao).toLocaleDateString('pt-BR')} (${formatRelative(p.data_criacao)})`
+                                      : `Abordado em: ${new Date(p.data_ultimo_contato || p.data_criacao).toLocaleDateString('pt-BR')} (${formatRelative(p.data_ultimo_contato || p.data_criacao)})`}
                                   </p>
                                 )}
                                 {p.qualificacao ? (
