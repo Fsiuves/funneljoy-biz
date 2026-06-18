@@ -222,10 +222,15 @@ export function ProspectsTab() {
                                 {p.nome?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                               </span>
                             </div>
-                            <div>
-                              <p className="font-medium text-foreground text-sm">{p.nome}</p>
-                              <p className="text-xs text-muted-foreground">{p.cidade}</p>
-                            </div>
+                              <div>
+                                <p className="font-medium text-foreground text-sm">{p.nome}</p>
+                                <p className="text-xs text-muted-foreground">{p.cidade}</p>
+                                {p.data_criacao && (
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    Abordado em: {formatRelative(p.data_criacao)}
+                                  </p>
+                                )}
+                              </div>
                           </div>
                         </td>
                         <td className="px-6 py-4">
