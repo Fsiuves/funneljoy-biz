@@ -222,10 +222,15 @@ export function ProspectsTab() {
                                 {p.nome?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                               </span>
                             </div>
-                            <div>
-                              <p className="font-medium text-foreground text-sm">{p.nome}</p>
-                              <p className="text-xs text-muted-foreground">{p.cidade}</p>
-                            </div>
+                              <div>
+                                <p className="font-medium text-foreground text-sm">{p.nome}</p>
+                                <p className="text-xs text-muted-foreground">{p.cidade}</p>
+                                {p.data_criacao && (
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    Abordado em: {formatRelative(p.data_criacao)}
+                                  </p>
+                                )}
+                              </div>
                           </div>
                         </td>
                         <td className="px-6 py-4">
@@ -442,6 +447,11 @@ export function ProspectsTab() {
                               </div>
                               <div className="bg-card rounded-lg p-4 border border-border">
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Qualificação SDR</p>
+                                {p.data_criacao && (
+                                  <p className="text-xs text-muted-foreground mb-2">
+                                    Abordado em: {new Date(p.data_criacao).toLocaleDateString('pt-BR')} ({formatRelative(p.data_criacao)})
+                                  </p>
+                                )}
                                 {p.qualificacao ? (
                                   <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${
                                     p.qualificacao === 'INTERESSE' ? 'bg-success/10 text-success' :
@@ -451,6 +461,10 @@ export function ProspectsTab() {
                                     p.qualificacao === 'OBJECAO' ? 'bg-orange-500/10 text-orange-500' :
                                     'bg-muted text-muted-foreground'
                                   }`}>{p.qualificacao}</span>
+                                ) : p.ultima_resposta ? (
+                                  <span className="inline-block px-2 py-1 rounded text-xs font-bold bg-purple-500/10 text-purple-500">
+                                    Respondeu
+                                  </span>
                                 ) : (
                                   <p className="text-sm text-muted-foreground">Aguardando resposta</p>
                                 )}
