@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Phone, MessageSquare, CheckCircle2, Clock, XCircle, Loader2, ChevronDown, ChevronUp, Target, Copy, Trash2, Globe, Instagram, Pencil, Save, X } from 'lucide-react';
+import { Phone, MessageSquare, CheckCircle2, Clock, XCircle, Loader2, ChevronDown, ChevronUp, Target, Copy, Trash2, Globe, Instagram, Pencil, Save, X, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const SUPABASE_PIA_URL = 'https://sjspfkzxyfipuamvbswd.supabase.co';
@@ -22,6 +22,8 @@ interface Prospect {
   data_ultimo_contato: string;
   website?: string;
   instagram?: string;
+  data_resposta: string | null;
+  crm_stage: string | null;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; icon: any; class: string }> = {
@@ -31,9 +33,24 @@ const STATUS_CONFIG: Record<string, { label: string; icon: any; class: string }>
   follow_up_1: { label: 'Follow-up 1', icon: MessageSquare, class: 'bg-warning/10 text-warning' },
   follow_up_2: { label: 'Follow-up 2', icon: MessageSquare, class: 'bg-orange-500/10 text-orange-500' },
   respondeu: { label: 'Respondeu', icon: MessageSquare, class: 'bg-purple-500/10 text-purple-500' },
+  em_diagnostico: { label: 'Em Diagnóstico', icon: Clock, class: 'bg-indigo-500/10 text-indigo-500' },
   qualificado: { label: 'Qualificado', icon: CheckCircle2, class: 'bg-success/10 text-success' },
   frio: { label: 'Frio', icon: XCircle, class: 'bg-destructive/10 text-destructive' },
 };
+
+const PAGE_SIZE = 50;
+
+function formatRelative(date: string | null | undefined) {
+  if (!date) return '';
+  const d = new Date(date);
+  const diffMs = Date.now() - d.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) return d.toLocaleDateString('pt-BR');
+  if (diffDays === 0) return 'hoje';
+  if (diffDays === 1) return 'há 1 dia';
+  if (diffDays < 30) return `há ${diffDays} dias`;
+  return d.toLocaleDateString('pt-BR');
+}
 
 export function ProspectsTab() {
   const [prospects, setProspects] = useState<Prospect[]>([]);
@@ -44,24 +61,35 @@ export function ProspectsTab() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editMsgs, setEditMsgs] = useState<{ msg_abordagem: string; msg_follow1: string; msg_follow2: string }>({ msg_abordagem: '', msg_follow1: '', msg_follow2: '' });
   const [saving, setSaving] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
 
-  const carregar = async () => {
+  const carregar = async (reset = true) => {
+    const currentOffset = reset ? 0 : offset;
+    if (reset) setRefreshing(true); else setLoadingMore(true);
     try {
       const res = await fetch(
-        `${SUPABASE_PIA_URL}/rest/v1/prospects?select=*&order=data_criacao.desc&limit=200`,
+        `${SUPABASE_PIA_URL}/rest/v1/prospects?select=*&order=data_criacao.desc&limit=${PAGE_SIZE}&offset=${currentOffset}`,
         { headers: { apikey: SUPABASE_PIA_KEY, Authorization: `Bearer ${SUPABASE_PIA_KEY}` } }
       );
       const data = await res.json();
-      setProspects(data || []);
+      const arr: Prospect[] = data || [];
+      setProspects(prev => reset ? arr : [...prev, ...arr]);
+      setHasMore(arr.length === PAGE_SIZE);
+      setOffset(currentOffset + arr.length);
     } catch {
       toast({ title: 'Erro ao carregar prospects', variant: 'destructive' });
     } finally {
       setLoading(false);
+      setRefreshing(false);
+      setLoadingMore(false);
     }
   };
 
-  useEffect(() => { carregar(); }, []);
+  useEffect(() => { carregar(true); }, []);
 
   const iniciarEdicao = (p: Prospect) => {
     setEditingId(p.id);
@@ -142,13 +170,21 @@ export function ProspectsTab() {
       </div>
 
       {/* Busca */}
-      <div className="mb-4">
+      <div className="mb-4 flex items-center justify-between gap-3">
         <input
           value={busca}
           onChange={e => setBusca(e.target.value)}
           placeholder="Buscar por nome, nicho ou cidade..."
           className="input-field w-full max-w-md"
         />
+        <button
+          onClick={() => carregar(true)}
+          disabled={refreshing}
+          className="p-2 rounded-lg border border-border hover:bg-muted transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50"
+          title="Atualizar"
+        >
+          {refreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+        </button>
       </div>
 
       {/* Tabela */}
@@ -241,6 +277,9 @@ export function ProspectsTab() {
                           <p className="text-sm text-foreground max-w-xs truncate">
                             {p.ultima_resposta || <span className="text-muted-foreground">—</span>}
                           </p>
+                          {p.data_ultimo_contato && (
+                            <p className="text-xs text-muted-foreground mt-0.5">{formatRelative(p.data_ultimo_contato)}</p>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -285,7 +324,7 @@ export function ProspectsTab() {
                         <tr key={`${p.id}-exp`} className="bg-muted/20 border-b border-border">
                           <td colSpan={7} className="px-6 py-4">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <div className="bg-card rounded-lg p-4 border border-border">
+                              <div className="bg-card rounded-lg p-4 border border-border max-h-[200px] overflow-y-auto">
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Análise do Negócio</p>
                                 <p className="text-sm text-foreground">{p.analise_lead || '—'}</p>
                               </div>
@@ -406,11 +445,20 @@ export function ProspectsTab() {
                                 {p.qualificacao ? (
                                   <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${
                                     p.qualificacao === 'INTERESSE' ? 'bg-success/10 text-success' :
+                                    p.qualificacao === 'DIAGNOSTICO' ? 'bg-indigo-500/10 text-indigo-500' :
                                     p.qualificacao === 'REJEICAO' ? 'bg-destructive/10 text-destructive' :
-                                    'bg-warning/10 text-warning'
+                                    p.qualificacao === 'DUVIDA' ? 'bg-warning/10 text-warning' :
+                                    p.qualificacao === 'OBJECAO' ? 'bg-orange-500/10 text-orange-500' :
+                                    'bg-muted text-muted-foreground'
                                   }`}>{p.qualificacao}</span>
                                 ) : (
                                   <p className="text-sm text-muted-foreground">Aguardando resposta</p>
+                                )}
+                                {p.crm_stage && (
+                                  <p className="text-xs text-muted-foreground mt-2">Etapa CRM: {p.crm_stage}</p>
+                                )}
+                                {p.data_resposta && (
+                                  <p className="text-xs text-muted-foreground mt-1">Respondeu em {new Date(p.data_resposta).toLocaleDateString('pt-BR')}</p>
                                 )}
                                 {p.ultima_resposta && (
                                   <p className="text-xs text-foreground mt-2 italic">"{p.ultima_resposta}"</p>
@@ -425,6 +473,18 @@ export function ProspectsTab() {
                 })}
               </tbody>
             </table>
+            {hasMore && (
+              <div className="p-4 border-t border-border flex justify-center">
+                <button
+                  onClick={() => carregar(false)}
+                  disabled={loadingMore}
+                  className="px-4 py-2 text-sm rounded-lg border border-border hover:bg-muted transition-colors text-foreground disabled:opacity-50 inline-flex items-center gap-2"
+                >
+                  {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Carregar mais
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
