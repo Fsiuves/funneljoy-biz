@@ -51,12 +51,12 @@ const settingsSections = [
     enabled: false,
   },
   {
-    id: null,
+    id: 'integrations' as const,
     icon: Database,
     title: 'Integrações',
     description: 'Conecte suas ferramentas',
     items: ['WhatsApp', 'E-mail', 'Calendário', 'API'],
-    enabled: false,
+    enabled: true,
   },
 ];
 
