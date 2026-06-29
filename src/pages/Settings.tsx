@@ -5,8 +5,9 @@ import { Building2, Users, Bell, Palette, Shield, Database } from 'lucide-react'
 import { CompanySettingsModal } from '@/components/settings/CompanySettingsModal';
 import { AppearanceSettingsModal } from '@/components/settings/AppearanceSettingsModal';
 import { TeamSettingsModal } from '@/components/settings/TeamSettingsModal';
+import { IntegrationSettingsModal } from '@/components/settings/IntegrationSettingsModal';
 
-type ModalType = 'company' | 'team' | 'appearance' | null;
+type ModalType = 'company' | 'team' | 'appearance' | 'integrations' | null;
 
 const settingsSections = [
   {
@@ -139,6 +140,10 @@ export default function Settings() {
       <TeamSettingsModal 
         open={openModal === 'team'} 
         onOpenChange={(open) => setOpenModal(open ? 'team' : null)} 
+      />
+      <IntegrationSettingsModal
+        open={openModal === 'integrations'}
+        onOpenChange={(open) => setOpenModal(open ? 'integrations' : null)}
       />
     </MainLayout>
   );
