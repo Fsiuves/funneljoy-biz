@@ -124,6 +124,42 @@ export function ProspectsTab() {
     }
   };
 
+  const excluirProspect = async (p: Prospect) => {
+    if (!confirm('Tem certeza que deseja excluir este prospect e todo o histórico de conversas?')) return;
+    try {
+      const resConv = await fetch(
+        `${SUPABASE_PIA_URL}/rest/v1/conversas?prospect_id=eq.${p.id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            apikey: SUPABASE_PIA_KEY,
+            Authorization: `Bearer ${SUPABASE_PIA_KEY}`,
+            Prefer: 'return=minimal',
+          },
+        }
+      );
+      if (!resConv.ok && resConv.status !== 204) throw new Error('Erro ao excluir conversas');
+
+      const res = await fetch(
+        `${SUPABASE_PIA_URL}/rest/v1/prospects?id=eq.${p.id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            apikey: SUPABASE_PIA_KEY,
+            Authorization: `Bearer ${SUPABASE_PIA_KEY}`,
+            Prefer: 'return=minimal',
+          },
+        }
+      );
+      if (!res.ok && res.status !== 204) throw new Error('Erro ao excluir prospect');
+
+      setProspects(prev => prev.filter(pr => pr.id !== p.id));
+      toast({ title: 'Prospect excluído com sucesso!' });
+    } catch (e: any) {
+      toast({ title: e.message || 'Erro ao excluir prospect', variant: 'destructive' });
+    }
+  };
+
   const filtrados = prospects.filter(p => {
     const matchStatus = filtroStatus === 'todos' || p.status === filtroStatus;
     const matchBusca = !busca ||
@@ -291,28 +327,7 @@ export function ProspectsTab() {
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <button
-                              onClick={() => {
-                                if (confirm('Tem certeza que deseja excluir este prospect?')) {
-                                  fetch(
-                                    `${SUPABASE_PIA_URL}/rest/v1/prospects?id=eq.${p.id}`,
-                                    {
-                                      method: 'DELETE',
-                                      headers: {
-                                        apikey: SUPABASE_PIA_KEY,
-                                        Authorization: `Bearer ${SUPABASE_PIA_KEY}`,
-                                      },
-                                    }
-                                  )
-                                    .then((res) => {
-                                      if (!res.ok) throw new Error('Erro ao excluir');
-                                      setProspects((prev) => prev.filter((pr) => pr.id !== p.id));
-                                      toast({ title: 'Prospect excluído com sucesso!' });
-                                    })
-                                    .catch(() => {
-                                      toast({ title: 'Erro ao excluir prospect', variant: 'destructive' });
-                                    });
-                                }
-                              }}
+                              onClick={() => excluirProspect(p)}
                               className="p-2 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
                               title="Excluir prospect"
                             >
@@ -481,6 +496,38 @@ export function ProspectsTab() {
                                 {p.ultima_resposta && (
                                   <p className="text-xs text-foreground mt-2 italic">"{p.ultima_resposta}"</p>
                                 )}
+
+                                <div className="mt-3 pt-3 border-t border-border">
+                                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Mover status manualmente</p>
+                                  <select
+                                    value={p.status}
+                                    onChange={async (e) => {
+                                      const novoStatus = e.target.value;
+                                      try {
+                                        const res = await fetch(`${SUPABASE_PIA_URL}/rest/v1/prospects?id=eq.${p.id}`, {
+                                          method: 'PATCH',
+                                          headers: {
+                                            apikey: SUPABASE_PIA_KEY,
+                                            Authorization: `Bearer ${SUPABASE_PIA_KEY}`,
+                                            'Content-Type': 'application/json',
+                                            Prefer: 'return=minimal',
+                                          },
+                                          body: JSON.stringify({ status: novoStatus }),
+                                        });
+                                        if (!res.ok && res.status !== 204) throw new Error();
+                                        setProspects(prev => prev.map(pr => pr.id === p.id ? { ...pr, status: novoStatus } : pr));
+                                        toast({ title: 'Status atualizado!' });
+                                      } catch {
+                                        toast({ title: 'Erro ao atualizar status', variant: 'destructive' });
+                                      }
+                                    }}
+                                    className="w-full text-xs rounded-md border border-border bg-background text-foreground px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                                  >
+                                    {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+                                      <option key={key} value={key}>{cfg.label}</option>
+                                    ))}
+                                  </select>
+                                </div>
                               </div>
                             </div>
                           </td>
