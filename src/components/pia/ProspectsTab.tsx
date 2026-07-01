@@ -496,6 +496,38 @@ export function ProspectsTab() {
                                 {p.ultima_resposta && (
                                   <p className="text-xs text-foreground mt-2 italic">"{p.ultima_resposta}"</p>
                                 )}
+
+                                <div className="mt-3 pt-3 border-t border-border">
+                                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Mover status manualmente</p>
+                                  <select
+                                    value={p.status}
+                                    onChange={async (e) => {
+                                      const novoStatus = e.target.value;
+                                      try {
+                                        const res = await fetch(`${SUPABASE_PIA_URL}/rest/v1/prospects?id=eq.${p.id}`, {
+                                          method: 'PATCH',
+                                          headers: {
+                                            apikey: SUPABASE_PIA_KEY,
+                                            Authorization: `Bearer ${SUPABASE_PIA_KEY}`,
+                                            'Content-Type': 'application/json',
+                                            Prefer: 'return=minimal',
+                                          },
+                                          body: JSON.stringify({ status: novoStatus }),
+                                        });
+                                        if (!res.ok && res.status !== 204) throw new Error();
+                                        setProspects(prev => prev.map(pr => pr.id === p.id ? { ...pr, status: novoStatus } : pr));
+                                        toast({ title: 'Status atualizado!' });
+                                      } catch {
+                                        toast({ title: 'Erro ao atualizar status', variant: 'destructive' });
+                                      }
+                                    }}
+                                    className="w-full text-xs rounded-md border border-border bg-background text-foreground px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                                  >
+                                    {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+                                      <option key={key} value={key}>{cfg.label}</option>
+                                    ))}
+                                  </select>
+                                </div>
                               </div>
                             </div>
                           </td>
