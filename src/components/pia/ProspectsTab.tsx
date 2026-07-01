@@ -327,28 +327,7 @@ export function ProspectsTab() {
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <button
-                              onClick={() => {
-                                if (confirm('Tem certeza que deseja excluir este prospect?')) {
-                                  fetch(
-                                    `${SUPABASE_PIA_URL}/rest/v1/prospects?id=eq.${p.id}`,
-                                    {
-                                      method: 'DELETE',
-                                      headers: {
-                                        apikey: SUPABASE_PIA_KEY,
-                                        Authorization: `Bearer ${SUPABASE_PIA_KEY}`,
-                                      },
-                                    }
-                                  )
-                                    .then((res) => {
-                                      if (!res.ok) throw new Error('Erro ao excluir');
-                                      setProspects((prev) => prev.filter((pr) => pr.id !== p.id));
-                                      toast({ title: 'Prospect excluído com sucesso!' });
-                                    })
-                                    .catch(() => {
-                                      toast({ title: 'Erro ao excluir prospect', variant: 'destructive' });
-                                    });
-                                }
-                              }}
+                              onClick={() => excluirProspect(p)}
                               className="p-2 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
                               title="Excluir prospect"
                             >
