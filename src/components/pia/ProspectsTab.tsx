@@ -124,6 +124,42 @@ export function ProspectsTab() {
     }
   };
 
+  const excluirProspect = async (p: Prospect) => {
+    if (!confirm('Tem certeza que deseja excluir este prospect e todo o histórico de conversas?')) return;
+    try {
+      const resConv = await fetch(
+        `${SUPABASE_PIA_URL}/rest/v1/conversas?prospect_id=eq.${p.id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            apikey: SUPABASE_PIA_KEY,
+            Authorization: `Bearer ${SUPABASE_PIA_KEY}`,
+            Prefer: 'return=minimal',
+          },
+        }
+      );
+      if (!resConv.ok && resConv.status !== 204) throw new Error('Erro ao excluir conversas');
+
+      const res = await fetch(
+        `${SUPABASE_PIA_URL}/rest/v1/prospects?id=eq.${p.id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            apikey: SUPABASE_PIA_KEY,
+            Authorization: `Bearer ${SUPABASE_PIA_KEY}`,
+            Prefer: 'return=minimal',
+          },
+        }
+      );
+      if (!res.ok && res.status !== 204) throw new Error('Erro ao excluir prospect');
+
+      setProspects(prev => prev.filter(pr => pr.id !== p.id));
+      toast({ title: 'Prospect excluído com sucesso!' });
+    } catch (e: any) {
+      toast({ title: e.message || 'Erro ao excluir prospect', variant: 'destructive' });
+    }
+  };
+
   const filtrados = prospects.filter(p => {
     const matchStatus = filtroStatus === 'todos' || p.status === filtroStatus;
     const matchBusca = !busca ||
