@@ -24,6 +24,7 @@ interface Prospect {
   instagram?: string;
   data_resposta: string | null;
   crm_stage: string | null;
+  score_fit?: number | null;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; icon: any; class: string }> = {
@@ -72,7 +73,7 @@ export function ProspectsTab() {
     if (reset) setRefreshing(true); else setLoadingMore(true);
     try {
       const res = await fetch(
-        `${SUPABASE_PIA_URL}/rest/v1/prospects?select=*&order=data_criacao.desc&limit=${PAGE_SIZE}&offset=${currentOffset}`,
+        `${SUPABASE_PIA_URL}/rest/v1/prospects?select=*&order=score_fit.desc.nullslast,data_criacao.desc&limit=${PAGE_SIZE}&offset=${currentOffset}`,
         { headers: { apikey: SUPABASE_PIA_KEY, Authorization: `Bearer ${SUPABASE_PIA_KEY}` } }
       );
       const data = await res.json();
@@ -238,6 +239,7 @@ export function ProspectsTab() {
                   <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Empresa</th>
                   <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Contato</th>
                   <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Nicho</th>
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Fit</th>
                   <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Links</th>
                   <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Status</th>
                   <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Última resposta</th>
@@ -279,6 +281,17 @@ export function ProspectsTab() {
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-sm text-foreground">{p.nicho}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          {typeof p.score_fit === 'number' ? (
+                            <span className={`inline-flex items-center justify-center min-w-[2.5rem] px-2 py-1 rounded-md text-xs font-bold ${
+                              p.score_fit >= 88 ? 'bg-success/10 text-success' :
+                              p.score_fit >= 80 ? 'bg-primary/10 text-primary' :
+                              'bg-muted text-muted-foreground'
+                            }`}>{p.score_fit}</span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
@@ -344,7 +357,7 @@ export function ProspectsTab() {
                       </tr>
                       {isExpanded && (
                         <tr key={`${p.id}-exp`} className="bg-muted/20 border-b border-border">
-                          <td colSpan={7} className="px-6 py-4">
+                          <td colSpan={8} className="px-6 py-4">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div className="bg-card rounded-lg p-4 border border-border max-h-[200px] overflow-y-auto">
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Análise do Negócio</p>
