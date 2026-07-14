@@ -186,26 +186,82 @@ export function LeadDetailsModal({ isOpen, onClose, lead }: Props) {
             <h3 className="text-sm font-semibold text-foreground mb-3">Histórico</h3>
             {activities.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhuma atividade registrada.</p>
-            ) : (
-              <div className="space-y-2">
-                {activities.map((a) => {
-                  const Icon = activityIcon[a.type] || StickyNote;
-                  return (
-                    <div key={a.id} className="flex gap-3 p-3 bg-muted/30 rounded-lg">
+            ) : (() => {
+              // Sort ascending for chat feel
+              const sorted = [...activities].sort(
+                (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
+              );
+              const items = sorted.map((a) => {
+                const isWa = a.type === 'whatsapp';
+                const sentMatch = isWa && a.description.startsWith('[Auto - enviada]');
+                const recvMatch = isWa && a.description.startsWith('[Auto - recebida]');
+                const isChat = sentMatch || recvMatch;
+                return { a, isChat, sent: sentMatch, recv: recvMatch };
+              });
+
+              const rendered: React.ReactNode[] = [];
+              let chatBuffer: typeof items = [];
+              const flushChat = (keyPrefix: string) => {
+                if (chatBuffer.length === 0) return;
+                rendered.push(
+                  <div
+                    key={`chat-${keyPrefix}`}
+                    className="rounded-xl border border-border bg-[#e5ddd5] dark:bg-muted/40 p-3 space-y-2"
+                  >
+                    {chatBuffer.map(({ a, sent }) => {
+                      const text = a.description
+                        .replace(/^\[Auto - enviada\]\s?/, '')
+                        .replace(/^\[Auto - recebida\]\s?/, '');
+                      return (
+                        <div
+                          key={a.id}
+                          className={`flex ${sent ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`max-w-[75%] rounded-lg px-3 py-2 shadow-sm ${
+                              sent
+                                ? 'bg-[#dcf8c6] text-foreground dark:bg-primary/20'
+                                : 'bg-white text-foreground dark:bg-card'
+                            }`}
+                          >
+                            <p className="text-sm whitespace-pre-wrap break-words">{text}</p>
+                            <p className="text-[10px] text-muted-foreground mt-1 text-right">
+                              {format(a.createdAt, "dd/MM HH:mm", { locale: ptBR })}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+                chatBuffer = [];
+              };
+
+              items.forEach((item, idx) => {
+                if (item.isChat) {
+                  chatBuffer.push(item);
+                } else {
+                  flushChat(`b${idx}`);
+                  const Icon = activityIcon[item.a.type] || StickyNote;
+                  rendered.push(
+                    <div key={item.a.id} className="flex gap-3 p-3 bg-muted/30 rounded-lg">
                       <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                         <Icon className="w-4 h-4 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-foreground break-words">{a.description}</p>
+                        <p className="text-sm text-foreground break-words">{item.a.description}</p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {format(a.createdAt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          {format(item.a.createdAt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                         </p>
                       </div>
                     </div>
                   );
-                })}
-              </div>
-            )}
+                }
+              });
+              flushChat('end');
+
+              return <div className="space-y-3">{rendered}</div>;
+            })()}
           </div>
         </div>
       </div>
