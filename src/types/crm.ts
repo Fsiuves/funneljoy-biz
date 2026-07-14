@@ -20,7 +20,36 @@ export interface Lead {
   createdByName?: string;
   nextFollowUp?: Date;
   tags?: string[];
+  notes?: string;
 }
+
+export type LeadStepKey =
+  | 'ligacao_1'
+  | 'ligacao_2'
+  | 'follow_up_1'
+  | 'follow_up_2'
+  | 'follow_up_3'
+  | 'follow_up_4'
+  | 'follow_up_5';
+
+export interface LeadStep {
+  id: string;
+  leadId: string;
+  stepKey: LeadStepKey;
+  done: boolean;
+  message?: string;
+  doneAt?: Date;
+}
+
+export const LEAD_STEP_DEFS: { key: LeadStepKey; label: string; activityType: ActivityType }[] = [
+  { key: 'ligacao_1', label: 'Ligação 1', activityType: 'call' },
+  { key: 'ligacao_2', label: 'Ligação 2', activityType: 'call' },
+  { key: 'follow_up_1', label: 'Follow up 1', activityType: 'whatsapp' },
+  { key: 'follow_up_2', label: 'Follow up 2', activityType: 'whatsapp' },
+  { key: 'follow_up_3', label: 'Follow up 3', activityType: 'whatsapp' },
+  { key: 'follow_up_4', label: 'Follow up 4', activityType: 'whatsapp' },
+  { key: 'follow_up_5', label: 'Follow up 5', activityType: 'whatsapp' },
+];
 
 export interface Activity {
   id: string;
