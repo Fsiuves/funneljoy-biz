@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    let body: { telefone?: string; mensagem?: string; direction?: string };
+    let body: { telefone?: string; mensagem?: string; direction?: string; nome?: string };
     try {
       body = await req.json();
     } catch {
@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { telefone, mensagem, direction } = body ?? {};
+    const { telefone, mensagem, direction, nome } = body ?? {};
     if (
       typeof telefone !== "string" ||
       typeof mensagem !== "string" ||
@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const lead = (leads ?? []).find((l) => {
+    let lead = (leads ?? []).find((l) => {
       const leadDigits = (l.phone ?? "").replace(/\D/g, "");
       if (!leadDigits) return false;
       const leadLast11 = leadDigits.slice(-11);
@@ -87,11 +87,66 @@ Deno.serve(async (req) => {
       );
     });
 
+    let createdLead = false;
     if (!lead) {
-      return new Response(JSON.stringify({ matched: false }), {
-        status: 200,
-        headers: jsonHeaders,
-      });
+      // No matching lead: auto-create one under a "default" tenant.
+      // Strategy: use the tenant_id of the most recently created existing lead
+      // as the automation's default tenant. This works because the CRM is
+      // effectively single-tenant per automation deployment (the n8n workflow
+      // is wired to one company's WhatsApp instance), and it avoids requiring
+      // an env-var/config change every time. If no leads exist at all, fall
+      // back to the tenant of the most recently created profile.
+      let defaultTenantId: string | null = null;
+      const { data: recentLead } = await supabaseAdmin
+        .from("leads")
+        .select("tenant_id")
+        .not("tenant_id", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      defaultTenantId = recentLead?.tenant_id ?? null;
+      if (!defaultTenantId) {
+        const { data: recentProfile } = await supabaseAdmin
+          .from("profiles")
+          .select("tenant_id")
+          .not("tenant_id", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        defaultTenantId = recentProfile?.tenant_id ?? null;
+      }
+      if (!defaultTenantId) {
+        return new Response(
+          JSON.stringify({ error: "no_default_tenant" }),
+          { status: 500, headers: jsonHeaders },
+        );
+      }
+
+      const formattedPhone = digits;
+      const leadName = (typeof nome === "string" && nome.trim().length > 0)
+        ? nome.trim()
+        : formattedPhone;
+
+      const { data: newLead, error: newLeadError } = await supabaseAdmin
+        .from("leads")
+        .insert({
+          name: leadName,
+          phone: formattedPhone,
+          source: "other",
+          stage: "new",
+          tenant_id: defaultTenantId,
+        })
+        .select("id, phone, tenant_id")
+        .single();
+
+      if (newLeadError || !newLead) {
+        return new Response(
+          JSON.stringify({ error: "lead_insert_failed", details: newLeadError?.message }),
+          { status: 500, headers: jsonHeaders },
+        );
+      }
+      lead = newLead;
+      createdLead = true;
     }
 
     const prefix = direction === "in" ? "[Auto - recebida] " : "[Auto - enviada] ";
@@ -117,7 +172,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ matched: true, lead_id: lead.id, activity_id: activity.id }),
+      JSON.stringify({ matched: true, created: createdLead, lead_id: lead.id, activity_id: activity.id }),
       { status: 200, headers: jsonHeaders },
     );
   } catch (err) {
