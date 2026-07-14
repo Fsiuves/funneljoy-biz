@@ -19,6 +19,7 @@ interface LeadRow {
   updated_at: string;
   created_by: string;
   tenant_id: string | null;
+  notes?: string | null;
 }
 
 const mapLeadFromDb = (row: LeadRow): Lead => ({
@@ -35,6 +36,7 @@ const mapLeadFromDb = (row: LeadRow): Lead => ({
   tags: row.tags || undefined,
   createdAt: new Date(row.created_at),
   updatedAt: new Date(row.updated_at),
+  notes: row.notes || undefined,
 });
 
 async function getUserTenantId(): Promise<string | null> {
@@ -162,7 +164,27 @@ export function useUpdateLead() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ id, nextFollowUp }: { id: string; nextFollowUp?: Date | null }) => {
+    mutationFn: async ({
+      id,
+      nextFollowUp,
+      notes,
+      name,
+      email,
+      phone,
+      company,
+      source,
+      value,
+    }: {
+      id: string;
+      nextFollowUp?: Date | null;
+      notes?: string | null;
+      name?: string;
+      email?: string | null;
+      phone?: string;
+      company?: string | null;
+      source?: LeadSource;
+      value?: number | null;
+    }) => {
       const updateData: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
       };
@@ -170,6 +192,13 @@ export function useUpdateLead() {
       if (nextFollowUp !== undefined) {
         updateData.next_follow_up = nextFollowUp ? nextFollowUp.toISOString() : null;
       }
+      if (notes !== undefined) updateData.notes = notes;
+      if (name !== undefined) updateData.name = name;
+      if (email !== undefined) updateData.email = email;
+      if (phone !== undefined) updateData.phone = phone;
+      if (company !== undefined) updateData.company = company;
+      if (source !== undefined) updateData.source = source;
+      if (value !== undefined) updateData.value = value;
 
       const { error } = await supabase
         .from('leads')

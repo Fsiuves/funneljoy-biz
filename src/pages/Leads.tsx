@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { AddLeadModal } from '@/components/leads/AddLeadModal';
-import { useLeads, useCreateLead, useDeleteLead } from '@/hooks/useLeads';
-import { LeadSource, LEAD_STAGES, LEAD_SOURCES } from '@/types/crm';
+import { EditLeadModal } from '@/components/leads/EditLeadModal';
+import { LeadDetailsModal } from '@/components/leads/LeadDetailsModal';
+import { useLeads, useCreateLead, useDeleteLead, useUpdateLead } from '@/hooks/useLeads';
+import { Lead, LeadSource, LEAD_STAGES, LEAD_SOURCES } from '@/types/crm';
 import { Phone, Mail, Building2, MoreHorizontal, Eye, Edit, Trash2, Loader2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -12,10 +14,13 @@ export default function Leads() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [detailsLead, setDetailsLead] = useState<Lead | null>(null);
+  const [editLead, setEditLead] = useState<Lead | null>(null);
   
   const { data: leads = [], isLoading } = useLeads();
   const createLead = useCreateLead();
   const deleteLead = useDeleteLead();
+  const updateLead = useUpdateLead();
 
   const filteredLeads = leads.filter((lead) => {
     if (!searchTerm) return true;
@@ -46,6 +51,16 @@ export default function Leads() {
     if (confirm('Tem certeza que deseja excluir este lead?')) {
       deleteLead.mutate(id);
     }
+    setOpenMenuId(null);
+  };
+
+  const handleViewDetails = (lead: Lead) => {
+    setDetailsLead(lead);
+    setOpenMenuId(null);
+  };
+
+  const handleEditClick = (lead: Lead) => {
+    setEditLead(lead);
     setOpenMenuId(null);
   };
 
@@ -204,11 +219,17 @@ export default function Leads() {
                         </button>
                         {openMenuId === lead.id && (
                           <div className="absolute right-0 mt-2 w-40 bg-card rounded-lg shadow-lg border border-border z-10 animate-scale-in">
-                            <button className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors">
+                            <button
+                              onClick={() => handleViewDetails(lead)}
+                              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                            >
                               <Eye className="w-4 h-4" />
                               Ver detalhes
                             </button>
-                            <button className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors">
+                            <button
+                              onClick={() => handleEditClick(lead)}
+                              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                            >
                               <Edit className="w-4 h-4" />
                               Editar
                             </button>
@@ -236,6 +257,24 @@ export default function Leads() {
         onClose={() => setIsModalOpen(false)}
         onAdd={handleAddLead}
         isLoading={createLead.isPending}
+      />
+
+      <LeadDetailsModal
+        isOpen={!!detailsLead}
+        onClose={() => setDetailsLead(null)}
+        lead={detailsLead}
+      />
+
+      <EditLeadModal
+        isOpen={!!editLead}
+        onClose={() => setEditLead(null)}
+        lead={editLead}
+        isLoading={updateLead.isPending}
+        onSave={(data) => {
+          updateLead.mutate(data, {
+            onSuccess: () => setEditLead(null),
+          });
+        }}
       />
     </MainLayout>
   );
