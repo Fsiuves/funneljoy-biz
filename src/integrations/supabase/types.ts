@@ -59,6 +59,50 @@ export type Database = {
           },
         ]
       }
+      lead_steps: {
+        Row: {
+          created_at: string
+          done: boolean
+          done_at: string | null
+          id: string
+          lead_id: string
+          message: string | null
+          step_key: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          done?: boolean
+          done_at?: string | null
+          id?: string
+          lead_id: string
+          message?: string | null
+          step_key: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          done?: boolean
+          done_at?: string | null
+          id?: string
+          lead_id?: string
+          message?: string | null
+          step_key?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_steps_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           assigned_to: string | null
@@ -69,6 +113,7 @@ export type Database = {
           id: string
           name: string
           next_follow_up: string | null
+          notes: string | null
           phone: string
           source: string
           stage: string
@@ -86,6 +131,7 @@ export type Database = {
           id?: string
           name: string
           next_follow_up?: string | null
+          notes?: string | null
           phone: string
           source?: string
           stage?: string
@@ -103,6 +149,7 @@ export type Database = {
           id?: string
           name?: string
           next_follow_up?: string | null
+          notes?: string | null
           phone?: string
           source?: string
           stage?: string
