@@ -10,6 +10,7 @@ interface KanbanBoardProps {
 
 export function KanbanBoard({ leads, onLeadClick, onStageChange }: KanbanBoardProps) {
   const [draggedLead, setDraggedLead] = useState<Lead | null>(null);
+  const [wasDragging, setWasDragging] = useState(false);
 
   const getLeadsByStage = (stage: LeadStage) => {
     return leads.filter(lead => lead.stage === stage);
@@ -17,6 +18,7 @@ export function KanbanBoard({ leads, onLeadClick, onStageChange }: KanbanBoardPr
 
   const handleDragStart = (lead: Lead) => {
     setDraggedLead(lead);
+    setWasDragging(true);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -82,11 +84,19 @@ export function KanbanBoard({ leads, onLeadClick, onStageChange }: KanbanBoardPr
                 key={lead.id}
                 draggable
                 onDragStart={() => handleDragStart(lead)}
+                onDragEnd={() => {
+                  setDraggedLead(null);
+                  // clear the drag flag on next tick so click handler sees it
+                  setTimeout(() => setWasDragging(false), 0);
+                }}
                 className="animate-slide-up"
               >
                 <LeadCard
                   lead={lead}
-                  onClick={() => onLeadClick?.(lead)}
+                  onClick={() => {
+                    if (wasDragging) return;
+                    onLeadClick?.(lead);
+                  }}
                 />
               </div>
             ))}

@@ -3,12 +3,14 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { KanbanBoard } from '@/components/leads/KanbanBoard';
 import { AddLeadModal } from '@/components/leads/AddLeadModal';
+import { LeadDetailsModal } from '@/components/leads/LeadDetailsModal';
 import { useLeads, useCreateLead, useUpdateLeadStage } from '@/hooks/useLeads';
-import { LeadStage, LeadSource } from '@/types/crm';
+import { Lead, LeadStage, LeadSource } from '@/types/crm';
 import { Loader2 } from 'lucide-react';
 
 export default function Funnel() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const { data: leads = [], isLoading } = useLeads();
   const createLead = useCreateLead();
   const updateStage = useUpdateLeadStage();
@@ -52,6 +54,7 @@ export default function Funnel() {
       <KanbanBoard 
         leads={leads} 
         onStageChange={handleStageChange}
+        onLeadClick={(lead) => setSelectedLead(lead)}
       />
 
       <AddLeadModal
@@ -59,6 +62,12 @@ export default function Funnel() {
         onClose={() => setIsModalOpen(false)}
         onAdd={handleAddLead}
         isLoading={createLead.isPending}
+      />
+
+      <LeadDetailsModal
+        isOpen={!!selectedLead}
+        onClose={() => setSelectedLead(null)}
+        lead={selectedLead}
       />
     </MainLayout>
   );
