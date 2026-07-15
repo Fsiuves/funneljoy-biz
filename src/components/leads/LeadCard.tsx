@@ -4,11 +4,14 @@ import { Phone, Mail, Building2, Calendar, CalendarPlus } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ScheduleFollowUpModal } from '@/components/activities/ScheduleFollowUpModal';
+import { useLeadSteps } from '@/hooks/useLeadSteps';
 
 interface LeadCardProps {
   lead: Lead;
   onClick?: () => void;
 }
+
+const TOTAL_STEPS = 7;
 
 export function LeadCard({ lead, onClick }: LeadCardProps) {
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
