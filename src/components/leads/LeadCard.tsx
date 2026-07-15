@@ -84,6 +84,20 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
           </p>
         </div>
 
+        {/* Progresso da sequência de contato */}
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs text-muted-foreground">Sequência de contato</span>
+            <span className="text-xs font-semibold text-foreground">{doneCount}/{TOTAL_STEPS}</span>
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+
         <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
           <span className="text-xs px-2 py-1 rounded-full bg-secondary text-secondary-foreground">
             {getSourceLabel(lead.source)}
