@@ -4,14 +4,21 @@ import { Phone, Mail, Building2, Calendar, CalendarPlus } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ScheduleFollowUpModal } from '@/components/activities/ScheduleFollowUpModal';
+import { useLeadSteps } from '@/hooks/useLeadSteps';
 
 interface LeadCardProps {
   lead: Lead;
   onClick?: () => void;
 }
 
+const TOTAL_STEPS = 7;
+
 export function LeadCard({ lead, onClick }: LeadCardProps) {
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const { data: steps = [] } = useLeadSteps(lead.id);
+
+  const doneCount = steps.filter(s => s.done).length;
+  const progress = Math.round((doneCount / TOTAL_STEPS) * 100);
 
   const getSourceLabel = (source: string) => {
     return LEAD_SOURCES.find(s => s.value === source)?.label || source;
@@ -75,6 +82,20 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
             <Mail className="w-3.5 h-3.5" />
             {lead.email}
           </p>
+        </div>
+
+        {/* Progresso da sequência de contato */}
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs text-muted-foreground">Sequência de contato</span>
+            <span className="text-xs font-semibold text-foreground">{doneCount}/{TOTAL_STEPS}</span>
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
         </div>
 
         <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
