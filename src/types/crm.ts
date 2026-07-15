@@ -1,6 +1,16 @@
 export type LeadSource = 'instagram' | 'ads' | 'website' | 'referral' | 'other';
 
-export type LeadStage = 'new' | 'negotiation' | 'proposal' | 'won' | 'lost';
+export type LeadStage =
+  | 'new'
+  | 'follow_up_1'
+  | 'follow_up_2'
+  | 'follow_up_3'
+  | 'follow_up_4'
+  | 'negotiation'
+  | 'proposal'
+  | 'won'
+  | 'lost'
+  | 'no_interest';
 
 export type ActivityType = 'call' | 'whatsapp' | 'email' | 'meeting' | 'note';
 
@@ -89,8 +99,13 @@ export const LEAD_SOURCES: { value: LeadSource; label: string }[] = [
 
 export const LEAD_STAGES: { value: LeadStage; label: string; color: string }[] = [
   { value: 'new', label: 'Novo Lead', color: 'stage-new' },
+  { value: 'follow_up_1', label: 'Follow up 1', color: 'stage-follow-up-1' },
+  { value: 'follow_up_2', label: 'Follow up 2', color: 'stage-follow-up-2' },
+  { value: 'follow_up_3', label: 'Follow up 3', color: 'stage-follow-up-3' },
+  { value: 'follow_up_4', label: 'Follow up 4', color: 'stage-follow-up-4' },
   { value: 'negotiation', label: 'Em Negociação', color: 'stage-negotiation' },
   { value: 'proposal', label: 'Proposta Enviada', color: 'stage-proposal' },
   { value: 'won', label: 'Fechou', color: 'stage-won' },
   { value: 'lost', label: 'Perdido', color: 'stage-lost' },
+  { value: 'no_interest', label: 'Não tem interesse', color: 'stage-no-interest' },
 ];
