@@ -49,6 +49,11 @@
     --stage-proposal: 280 70% 55%;
     --stage-won: 152 70% 42%;
     --stage-lost: 0 72% 51%;
+    --stage-follow-up-1: 200 80% 55%;
+    --stage-follow-up-2: 190 75% 50%;
+    --stage-follow-up-3: 180 70% 45%;
+    --stage-follow-up-4: 170 65% 42%;
+    --stage-no-interest: 25 70% 50%;
 
     /* Sidebar */
     --sidebar-background: 220 30% 15%;
