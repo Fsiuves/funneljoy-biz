@@ -35,10 +35,15 @@ export function KanbanBoard({ leads, onLeadClick, onStageChange }: KanbanBoardPr
   const getStageColor = (stage: LeadStage) => {
     switch (stage) {
       case 'new': return 'hsl(var(--stage-new))';
+      case 'follow_up_1': return 'hsl(var(--stage-follow-up-1))';
+      case 'follow_up_2': return 'hsl(var(--stage-follow-up-2))';
+      case 'follow_up_3': return 'hsl(var(--stage-follow-up-3))';
+      case 'follow_up_4': return 'hsl(var(--stage-follow-up-4))';
       case 'negotiation': return 'hsl(var(--stage-negotiation))';
       case 'proposal': return 'hsl(var(--stage-proposal))';
       case 'won': return 'hsl(var(--stage-won))';
       case 'lost': return 'hsl(var(--stage-lost))';
+      case 'no_interest': return 'hsl(var(--stage-no-interest))';
     }
   };
 
