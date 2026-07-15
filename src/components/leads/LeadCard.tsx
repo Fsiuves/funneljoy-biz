@@ -15,6 +15,10 @@ const TOTAL_STEPS = 7;
 
 export function LeadCard({ lead, onClick }: LeadCardProps) {
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const { data: steps = [] } = useLeadSteps(lead.id);
+
+  const doneCount = steps.filter(s => s.done).length;
+  const progress = Math.round((doneCount / TOTAL_STEPS) * 100);
 
   const getSourceLabel = (source: string) => {
     return LEAD_SOURCES.find(s => s.value === source)?.label || source;
