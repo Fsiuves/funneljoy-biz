@@ -317,7 +317,16 @@ export function CampanhasTab() {
                         <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
                           <Target className="w-4 h-4 text-primary" />
                         </div>
-                        <span className="font-medium text-foreground">{camp.nicho}</span>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-foreground">{camp.nicho}</span>
+                          <span className={`inline-flex w-fit items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                            camp.tipo_oferta === 'radar'
+                              ? 'bg-purple-500/10 text-purple-500'
+                              : 'bg-primary/10 text-primary'
+                          }`}>
+                            {camp.tipo_oferta === 'radar' ? 'RADAR' : 'Site'}
+                          </span>
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
