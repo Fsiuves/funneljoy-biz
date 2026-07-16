@@ -32,19 +32,20 @@ export function LeadDetailsModal({ isOpen, onClose, lead }: Props) {
   const updateLead = useUpdateLead();
   const createActivity = useCreateActivity();
   const activeLeadId = lead?.id;
+  const activeLeadNotes = lead?.notes;
 
   useEffect(() => {
-    if (!isOpen || !lead) {
+    if (!isOpen || !activeLeadId) {
       setNotes('');
       setStepMessages({});
       return;
     }
 
-    setNotes(lead.notes || '');
+    setNotes(activeLeadNotes || '');
     // Reset local step message edits whenever we switch leads,
     // otherwise messages from the previously opened lead leak in.
     setStepMessages({});
-  }, [isOpen, activeLeadId, lead?.notes]);
+  }, [isOpen, activeLeadId, activeLeadNotes]);
 
   useEffect(() => {
     if (!isOpen || !activeLeadId) return;
