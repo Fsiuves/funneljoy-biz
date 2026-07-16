@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { X, Loader2 } from 'lucide-react';
-import { LeadSource, LEAD_SOURCES } from '@/types/crm';
+import { useState, useMemo } from 'react';
+import { X, Loader2, AlertTriangle } from 'lucide-react';
+import { Lead, LeadSource, LEAD_SOURCES } from '@/types/crm';
 import { Button } from '@/components/ui/button';
 
 interface AddLeadModalProps {
@@ -15,6 +15,7 @@ interface AddLeadModalProps {
     value?: number;
   }) => void;
   isLoading?: boolean;
+  existingLeads?: Lead[];
 }
 
 // Format phone as (00) 00000-0000
@@ -49,7 +50,7 @@ const parseCurrency = (formatted: string): number => {
   return parseFloat(normalized) || 0;
 };
 
-export function AddLeadModal({ isOpen, onClose, onAdd, isLoading }: AddLeadModalProps) {
+export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads = [] }: AddLeadModalProps) {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -58,11 +59,36 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading }: AddLeadModal
     source: 'website' as LeadSource,
     value: '',
   });
+  const [forceCreate, setForceCreate] = useState(false);
+
+  const norm = (s: string) => s.trim().toLowerCase();
+  const phoneDigits = formData.phone.replace(/\D/g, '');
+
+  const phoneDuplicate = useMemo(
+    () => (phoneDigits.length >= 8
+      ? existingLeads.find((l) => l.phone.replace(/\D/g, '') === phoneDigits)
+      : undefined),
+    [existingLeads, phoneDigits]
+  );
+
+  const nameCompanyMatches = useMemo(() => {
+    const n = norm(formData.name);
+    const c = norm(formData.company);
+    if (n.length < 3 && c.length < 3) return [];
+    return existingLeads
+      .filter((l) => {
+        const ln = norm(l.name || '');
+        const lc = norm(l.company || '');
+        return (n.length >= 3 && ln.includes(n)) || (c.length >= 3 && lc.includes(c));
+      })
+      .slice(0, 5);
+  }, [existingLeads, formData.name, formData.company]);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (phoneDuplicate && !forceCreate) return;
     const numericValue = formData.value ? parseCurrency(formData.value) : undefined;
     onAdd({
       ...formData,
@@ -80,6 +106,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading }: AddLeadModal
       source: 'website',
       value: '',
     });
+    setForceCreate(false);
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -206,12 +233,48 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading }: AddLeadModal
             </div>
           </div>
 
+          {/* Duplicate detection */}
+          {phoneDuplicate && (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-sm">
+              <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-destructive font-medium">
+                  Já existe um lead com este telefone: {phoneDuplicate.name}
+                  {phoneDuplicate.company ? ` (${phoneDuplicate.company})` : ''}
+                </p>
+                <label className="flex items-center gap-2 mt-2 text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={forceCreate}
+                    onChange={(e) => setForceCreate(e.target.checked)}
+                  />
+                  Cadastrar mesmo assim
+                </label>
+              </div>
+            </div>
+          )}
+
+          {!phoneDuplicate && nameCompanyMatches.length > 0 && (
+            <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm">
+              <p className="text-foreground font-medium mb-1">
+                Possíveis leads já cadastrados:
+              </p>
+              <ul className="space-y-1">
+                {nameCompanyMatches.map((l) => (
+                  <li key={l.id} className="text-muted-foreground">
+                    • {l.name}{l.company ? ` — ${l.company}` : ''} · {l.phone}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Actions */}
           <div className="flex gap-3 pt-4">
             <Button type="button" variant="outline" onClick={onClose} className="flex-1" disabled={isLoading}>
               Cancelar
             </Button>
-            <Button type="submit" className="flex-1 btn-primary" disabled={isLoading}>
+            <Button type="submit" className="flex-1 btn-primary" disabled={isLoading || (!!phoneDuplicate && !forceCreate)}>
               {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Adicionar Lead'}
             </Button>
           </div>
