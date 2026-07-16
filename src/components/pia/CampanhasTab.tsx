@@ -25,6 +25,7 @@ interface Campanha {
   id: string;
   nicho: string;
   cidade: string;
+  tipo_oferta: 'site' | 'radar';
   status: 'ativo' | 'pausado' | 'concluido';
   data_criacao: string;
 }
@@ -53,6 +54,7 @@ export function CampanhasTab() {
   const [saving, setSaving] = useState(false);
   const [nicho, setNicho] = useState('');
   const [cidade, setCidade] = useState('');
+  const [tipoOferta, setTipoOferta] = useState<'site' | 'radar'>('site');
   const [nichoInput, setNichoInput] = useState('');
   const [cidadeInput, setCidadeInput] = useState('');
   const [showNichoList, setShowNichoList] = useState(false);
@@ -102,11 +104,11 @@ export function CampanhasTab() {
     try {
       await piaFetch('/campanhas', {
         method: 'POST',
-        body: JSON.stringify({ nicho: n, cidade: c, status: 'ativo' }),
+        body: JSON.stringify({ nicho: n, cidade: c, status: 'ativo', tipo_oferta: tipoOferta }),
       });
       toast({ title: `Campanha "${n} — ${c}" criada!` });
       setShowForm(false);
-      setNicho(''); setCidade(''); setNichoInput(''); setCidadeInput('');
+      setNicho(''); setCidade(''); setNichoInput(''); setCidadeInput(''); setTipoOferta('site');
       carregarCampanhas();
     } catch {
       toast({ title: 'Erro ao salvar', variant: 'destructive' });
