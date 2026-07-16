@@ -1,5 +1,7 @@
 import { Bell, Search, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 
 interface HeaderProps {
   title: string;
@@ -10,6 +12,15 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle, onAddClick, addButtonLabel, action }: HeaderProps) {
+  const navigate = useNavigate();
+  const [query, setQuery] = useState('');
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = query.trim();
+    navigate(q ? `/leads?q=${encodeURIComponent(q)}` : '/leads');
+  };
+
   return (
     <header className="flex items-center justify-between mb-8">
       <div>
@@ -20,14 +31,18 @@ export function Header({ title, subtitle, onAddClick, addButtonLabel, action }: 
       </div>
       <div className="flex items-center gap-4">
         {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <form onSubmit={handleSearch} className="relative">
+          <button type="submit" className="absolute left-3 top-1/2 -translate-y-1/2" aria-label="Buscar">
+            <Search className="w-4 h-4 text-muted-foreground" />
+          </button>
           <input
             type="text"
-            placeholder="Buscar..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar lead..."
             className="input-field pl-10 w-64"
           />
-        </div>
+        </form>
 
         {/* Notifications */}
         <button className="relative p-2 rounded-lg hover:bg-secondary transition-colors">
