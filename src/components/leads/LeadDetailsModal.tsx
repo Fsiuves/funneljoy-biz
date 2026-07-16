@@ -33,23 +33,32 @@ export function LeadDetailsModal({ isOpen, onClose, lead }: Props) {
   const createActivity = useCreateActivity();
 
   useEffect(() => {
-    if (lead) setNotes(lead.notes || '');
+    if (!isOpen || !lead) {
+      setNotes('');
+      setStepMessages({});
+      return;
+    }
+
+    setNotes(lead.notes || '');
     // Reset local step message edits whenever we switch leads,
     // otherwise messages from the previously opened lead leak in.
     setStepMessages({});
-  }, [lead?.id]);
+  }, [isOpen, lead?.id, lead?.notes]);
 
   useEffect(() => {
+    if (!isOpen || !lead?.id) return;
+
     const map: Record<string, string> = {};
-    steps.forEach((s) => {
+    steps.filter((s) => s.leadId === lead.id).forEach((s) => {
       map[s.stepKey] = s.message || '';
     });
     setStepMessages(map);
-  }, [lead?.id, steps]);
+  }, [isOpen, lead?.id, steps]);
 
   if (!isOpen || !lead) return null;
 
-  const stepByKey = new Map(steps.map((s) => [s.stepKey, s]));
+  const currentLeadSteps = steps.filter((s) => s.leadId === lead.id);
+  const stepByKey = new Map(currentLeadSteps.map((s) => [s.stepKey, s]));
   const sourceLabel = LEAD_SOURCES.find((s) => s.value === lead.source)?.label || lead.source;
   const stageLabel = LEAD_STAGES.find((s) => s.value === lead.stage)?.label || lead.stage;
 
@@ -61,12 +70,13 @@ export function LeadDetailsModal({ isOpen, onClose, lead }: Props) {
   };
 
   const toggleStep = async (stepKey: (typeof LEAD_STEP_DEFS)[number]['key'], done: boolean) => {
+    const leadId = lead.id;
     const def = LEAD_STEP_DEFS.find((d) => d.key === stepKey)!;
     const message = stepMessages[stepKey] || '';
-    await upsertStep.mutateAsync({ leadId: lead.id, stepKey, done, message });
+    await upsertStep.mutateAsync({ leadId, stepKey, done, message });
     if (done) {
       await createActivity.mutateAsync({
-        leadId: lead.id,
+        leadId,
         type: def.activityType,
         description: message || def.label,
       });
@@ -74,18 +84,19 @@ export function LeadDetailsModal({ isOpen, onClose, lead }: Props) {
   };
 
   const saveStepMessage = async (stepKey: (typeof LEAD_STEP_DEFS)[number]['key']) => {
+    const leadId = lead.id;
     const existing = stepByKey.get(stepKey);
     const def = LEAD_STEP_DEFS.find((d) => d.key === stepKey)!;
     const message = stepMessages[stepKey] || '';
     await upsertStep.mutateAsync({
-      leadId: lead.id,
+      leadId,
       stepKey,
       done: existing?.done ?? false,
       message,
     });
     if (message) {
       await createActivity.mutateAsync({
-        leadId: lead.id,
+        leadId,
         type: def.activityType,
         description: message,
       });
@@ -168,7 +179,7 @@ export function LeadDetailsModal({ isOpen, onClose, lead }: Props) {
                     </div>
                     <textarea
                       value={stepMessages[def.key] ?? ''}
-                      onChange={(e) => setStepMessages({ ...stepMessages, [def.key]: e.target.value })}
+                      onChange={(e) => setStepMessages((current) => ({ ...current, [def.key]: e.target.value }))}
                       onBlur={() => {
                         const original = step?.message || '';
                         if ((stepMessages[def.key] || '') !== original) {

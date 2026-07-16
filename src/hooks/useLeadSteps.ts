@@ -38,9 +38,12 @@ export function useLeadSteps(leadId?: string) {
       const { data, error } = await supabase
         .from('lead_steps')
         .select('*')
-        .eq('lead_id', leadId!);
+        .eq('lead_id', leadId!)
+        .order('created_at', { ascending: true });
       if (error) throw error;
-      return (data as LeadStepRow[]).map(mapStep);
+      return (data as LeadStepRow[])
+        .filter((row) => row.lead_id === leadId)
+        .map(mapStep);
     },
   });
 }
@@ -72,6 +75,7 @@ export function useUpsertLeadStep() {
     },
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['lead_steps', vars.leadId] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
     },
     onError: (error: Error) => {
       toast({ title: 'Erro ao salvar etapa', description: error.message, variant: 'destructive' });
