@@ -25,6 +25,7 @@ interface Campanha {
   id: string;
   nicho: string;
   cidade: string;
+  tipo_oferta: 'site' | 'radar';
   status: 'ativo' | 'pausado' | 'concluido';
   data_criacao: string;
 }
@@ -53,6 +54,7 @@ export function CampanhasTab() {
   const [saving, setSaving] = useState(false);
   const [nicho, setNicho] = useState('');
   const [cidade, setCidade] = useState('');
+  const [tipoOferta, setTipoOferta] = useState<'site' | 'radar'>('site');
   const [nichoInput, setNichoInput] = useState('');
   const [cidadeInput, setCidadeInput] = useState('');
   const [showNichoList, setShowNichoList] = useState(false);
@@ -102,11 +104,11 @@ export function CampanhasTab() {
     try {
       await piaFetch('/campanhas', {
         method: 'POST',
-        body: JSON.stringify({ nicho: n, cidade: c, status: 'ativo' }),
+        body: JSON.stringify({ nicho: n, cidade: c, status: 'ativo', tipo_oferta: tipoOferta }),
       });
       toast({ title: `Campanha "${n} — ${c}" criada!` });
       setShowForm(false);
-      setNicho(''); setCidade(''); setNichoInput(''); setCidadeInput('');
+      setNicho(''); setCidade(''); setNichoInput(''); setCidadeInput(''); setTipoOferta('site');
       carregarCampanhas();
     } catch {
       toast({ title: 'Erro ao salvar', variant: 'destructive' });
@@ -205,7 +207,7 @@ export function CampanhasTab() {
               )}
             </div>
 
-            <div className="mb-6 relative">
+            <div className="mb-4 relative">
               <label className="block text-sm font-medium text-foreground mb-2">Cidade</label>
               <input
                 value={cidadeInput}
@@ -226,6 +228,34 @@ export function CampanhasTab() {
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-foreground mb-2">Tipo de oferta</label>
+              <div className="grid grid-cols-2 gap-2 p-1 bg-muted rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setTipoOferta('site')}
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    tipoOferta === 'site'
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Site (presença digital)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTipoOferta('radar')}
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    tipoOferta === 'radar'
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Diagnóstico RADAR
+                </button>
+              </div>
             </div>
 
             {(nicho || nichoInput) && (cidade || cidadeInput) && (
@@ -287,7 +317,16 @@ export function CampanhasTab() {
                         <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
                           <Target className="w-4 h-4 text-primary" />
                         </div>
-                        <span className="font-medium text-foreground">{camp.nicho}</span>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-foreground">{camp.nicho}</span>
+                          <span className={`inline-flex w-fit items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                            camp.tipo_oferta === 'radar'
+                              ? 'bg-muted text-muted-foreground'
+                              : 'bg-primary/10 text-primary'
+                          }`}>
+                            {camp.tipo_oferta === 'radar' ? 'RADAR' : 'Site'}
+                          </span>
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
