@@ -45,6 +45,8 @@
 
     /* Funnel Stage Colors */
     --stage-new: 220 70% 50%;
+    --stage-ligacao-1: 210 75% 55%;
+    --stage-ligacao-2: 205 78% 50%;
     --stage-negotiation: 38 92% 50%;
     --stage-proposal: 280 70% 55%;
     --stage-won: 152 70% 42%;
