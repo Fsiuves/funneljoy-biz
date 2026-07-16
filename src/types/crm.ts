@@ -2,6 +2,8 @@ export type LeadSource = 'instagram' | 'ads' | 'website' | 'referral' | 'other';
 
 export type LeadStage =
   | 'new'
+  | 'ligacao_1'
+  | 'ligacao_2'
   | 'follow_up_1'
   | 'follow_up_2'
   | 'follow_up_3'
@@ -99,6 +101,8 @@ export const LEAD_SOURCES: { value: LeadSource; label: string }[] = [
 
 export const LEAD_STAGES: { value: LeadStage; label: string; color: string }[] = [
   { value: 'new', label: 'Novo Lead', color: 'stage-new' },
+  { value: 'ligacao_1', label: 'Ligação 1', color: 'stage-ligacao-1' },
+  { value: 'ligacao_2', label: 'Ligação 2', color: 'stage-ligacao-2' },
   { value: 'follow_up_1', label: 'Follow up 1', color: 'stage-follow-up-1' },
   { value: 'follow_up_2', label: 'Follow up 2', color: 'stage-follow-up-2' },
   { value: 'follow_up_3', label: 'Follow up 3', color: 'stage-follow-up-3' },
