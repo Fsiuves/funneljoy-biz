@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { AddLeadModal } from '@/components/leads/AddLeadModal';
@@ -16,6 +17,12 @@ export default function Leads() {
   const [searchTerm, setSearchTerm] = useState('');
   const [detailsLead, setDetailsLead] = useState<Lead | null>(null);
   const [editLead, setEditLead] = useState<Lead | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q !== null) setSearchTerm(q);
+  }, [searchParams]);
   
   const { data: leads = [], isLoading } = useLeads();
   const createLead = useCreateLead();
@@ -117,7 +124,13 @@ export default function Leads() {
           type="text"
           placeholder="Buscar por nome, telefone, empresa..."
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            if (searchParams.get('q')) {
+              searchParams.delete('q');
+              setSearchParams(searchParams, { replace: true });
+            }
+          }}
           className="input-field pl-10 w-full"
         />
       </div>
@@ -257,6 +270,7 @@ export default function Leads() {
         onClose={() => setIsModalOpen(false)}
         onAdd={handleAddLead}
         isLoading={createLead.isPending}
+        existingLeads={leads}
       />
 
       <LeadDetailsModal
