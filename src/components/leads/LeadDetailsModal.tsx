@@ -34,15 +34,18 @@ export function LeadDetailsModal({ isOpen, onClose, lead }: Props) {
 
   useEffect(() => {
     if (lead) setNotes(lead.notes || '');
-  }, [lead]);
+    // Reset local step message edits whenever we switch leads,
+    // otherwise messages from the previously opened lead leak in.
+    setStepMessages({});
+  }, [lead?.id]);
 
   useEffect(() => {
     const map: Record<string, string> = {};
-    steps.forEach((s) => { map[s.stepKey] = s.message || ''; });
-    setStepMessages((prev) => ({ ...map, ...prev }));
-    // Only sync missing keys from DB, keep local edits
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [steps.length]);
+    steps.forEach((s) => {
+      map[s.stepKey] = s.message || '';
+    });
+    setStepMessages(map);
+  }, [lead?.id, steps]);
 
   if (!isOpen || !lead) return null;
 
