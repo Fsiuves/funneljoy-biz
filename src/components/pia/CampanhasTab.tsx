@@ -207,7 +207,7 @@ export function CampanhasTab() {
               )}
             </div>
 
-            <div className="mb-6 relative">
+            <div className="mb-4 relative">
               <label className="block text-sm font-medium text-foreground mb-2">Cidade</label>
               <input
                 value={cidadeInput}
@@ -228,6 +228,34 @@ export function CampanhasTab() {
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-foreground mb-2">Tipo de oferta</label>
+              <div className="grid grid-cols-2 gap-2 p-1 bg-muted rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setTipoOferta('site')}
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    tipoOferta === 'site'
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Site (presença digital)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTipoOferta('radar')}
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    tipoOferta === 'radar'
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Diagnóstico RADAR
+                </button>
+              </div>
             </div>
 
             {(nicho || nichoInput) && (cidade || cidadeInput) && (
