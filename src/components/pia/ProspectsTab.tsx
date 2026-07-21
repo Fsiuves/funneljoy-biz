@@ -41,6 +41,9 @@ const STATUS_CONFIG: Record<string, { label: string; icon: any; class: string }>
 
 const PAGE_SIZE = 50;
 
+// Status que indicam que o prospect já foi abordado pelo SDR
+const ABORDADO_STATUSES = ['abordado', 'follow_up_1', 'follow_up_2', 'respondeu', 'em_diagnostico', 'qualificado', 'frio'];
+
 function formatRelative(date: string | null | undefined) {
   if (!date) return '';
   const d = new Date(date);
