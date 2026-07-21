@@ -165,7 +165,11 @@ export function ProspectsTab() {
   };
 
   const filtrados = prospects.filter(p => {
-    const matchStatus = filtroStatus === 'todos' || p.status === filtroStatus;
+    const matchStatus =
+      filtroStatus === 'todos' ||
+      (filtroStatus === 'abordado'
+        ? ABORDADO_STATUSES.includes(p.status)
+        : p.status === filtroStatus);
     const matchBusca = !busca ||
       p.nome?.toLowerCase().includes(busca.toLowerCase()) ||
       p.nicho?.toLowerCase().includes(busca.toLowerCase()) ||
@@ -174,7 +178,10 @@ export function ProspectsTab() {
   });
 
   const contadores = Object.keys(STATUS_CONFIG).reduce((acc, key) => {
-    acc[key] = prospects.filter(p => p.status === key).length;
+    acc[key] =
+      key === 'abordado'
+        ? prospects.filter(p => ABORDADO_STATUSES.includes(p.status)).length
+        : prospects.filter(p => p.status === key).length;
     return acc;
   }, {} as Record<string, number>);
 
