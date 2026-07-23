@@ -162,11 +162,7 @@ export function ProspectsTab() {
   };
 
   const filtrados = prospects.filter(p => {
-    const matchStatus =
-      filtroStatus === 'todos' ||
-      (filtroStatus === 'abordado'
-        ? ABORDADO_STATUSES.includes(p.status)
-        : p.status === filtroStatus);
+    const matchStatus = filtroStatus === 'todos' || p.status === filtroStatus;
     const matchBusca = !busca ||
       p.nome?.toLowerCase().includes(busca.toLowerCase()) ||
       p.nicho?.toLowerCase().includes(busca.toLowerCase()) ||
