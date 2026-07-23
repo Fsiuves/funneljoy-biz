@@ -171,10 +171,7 @@ export function ProspectsTab() {
   });
 
   const contadores = Object.keys(STATUS_CONFIG).reduce((acc, key) => {
-    acc[key] =
-      key === 'abordado'
-        ? prospects.filter(p => ABORDADO_STATUSES.includes(p.status)).length
-        : prospects.filter(p => p.status === key).length;
+    acc[key] = prospects.filter(p => p.status === key).length;
     return acc;
   }, {} as Record<string, number>);
 
