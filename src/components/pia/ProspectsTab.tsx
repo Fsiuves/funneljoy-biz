@@ -44,8 +44,9 @@ const PAGE_SIZE = 50;
 function formatRelative(date: string | null | undefined) {
   if (!date) return '';
   const d = new Date(date);
-  const diffMs = Date.now() - d.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const now = new Date();
+  const startOfDay = (dt: Date) => new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / (1000 * 60 * 60 * 24));
   if (diffDays < 0) return d.toLocaleDateString('pt-BR');
   if (diffDays === 0) return 'hoje';
   if (diffDays === 1) return 'há 1 dia';
