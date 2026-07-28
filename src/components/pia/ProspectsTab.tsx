@@ -66,11 +66,43 @@ export function ProspectsTab() {
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
+  const [totalCount, setTotalCount] = useState(0);
   const { toast } = useToast();
+
+  const carregarContadores = async () => {
+    try {
+      const keys = Object.keys(STATUS_CONFIG);
+      const results = await Promise.all(
+        keys.map(async (status) => {
+          const res = await fetch(
+            `${SUPABASE_PIA_URL}/rest/v1/prospects?select=id&status=eq.${status}`,
+            {
+              method: 'HEAD',
+              headers: {
+                apikey: SUPABASE_PIA_KEY,
+                Authorization: `Bearer ${SUPABASE_PIA_KEY}`,
+                Prefer: 'count=exact',
+              },
+            }
+          );
+          const range = res.headers.get('content-range') || '';
+          const total = parseInt(range.split('/')[1] || '0', 10);
+          return [status, isNaN(total) ? 0 : total] as const;
+        })
+      );
+      const counts = Object.fromEntries(results) as Record<string, number>;
+      setStatusCounts(counts);
+      setTotalCount(Object.values(counts).reduce((a, b) => a + b, 0));
+    } catch {
+      // contadores são informativos; falha silenciosa
+    }
+  };
 
   const carregar = async (reset = true) => {
     const currentOffset = reset ? 0 : offset;
     if (reset) setRefreshing(true); else setLoadingMore(true);
+    if (reset) carregarContadores();
     try {
       const res = await fetch(
         `${SUPABASE_PIA_URL}/rest/v1/prospects?select=*&order=score_fit.desc.nullslast,data_criacao.desc&limit=${PAGE_SIZE}&offset=${currentOffset}`,
@@ -155,6 +187,7 @@ export function ProspectsTab() {
       if (!res.ok && res.status !== 204) throw new Error('Erro ao excluir prospect');
 
       setProspects(prev => prev.filter(pr => pr.id !== p.id));
+      carregarContadores();
       toast({ title: 'Prospect excluído com sucesso!' });
     } catch (e: any) {
       toast({ title: e.message || 'Erro ao excluir prospect', variant: 'destructive' });
@@ -169,11 +202,6 @@ export function ProspectsTab() {
       p.cidade?.toLowerCase().includes(busca.toLowerCase());
     return matchStatus && matchBusca;
   });
-
-  const contadores = Object.keys(STATUS_CONFIG).reduce((acc, key) => {
-    acc[key] = prospects.filter(p => p.status === key).length;
-    return acc;
-  }, {} as Record<string, number>);
 
   if (loading) {
     return (
@@ -191,7 +219,7 @@ export function ProspectsTab() {
           onClick={() => setFiltroStatus('todos')}
           className={`p-3 rounded-lg border text-center transition-all ${filtroStatus === 'todos' ? 'border-primary bg-primary/5' : 'border-border bg-card hover:bg-muted/50'}`}
         >
-          <p className="text-lg font-bold text-foreground">{prospects.length}</p>
+          <p className="text-lg font-bold text-foreground">{totalCount}</p>
           <p className="text-xs text-muted-foreground mt-0.5">Todos</p>
         </button>
         {Object.entries(STATUS_CONFIG).map(([key, config]) => (
@@ -200,7 +228,7 @@ export function ProspectsTab() {
             onClick={() => setFiltroStatus(filtroStatus === key ? 'todos' : key)}
             className={`p-3 rounded-lg border text-center transition-all ${filtroStatus === key ? 'border-primary bg-primary/5' : 'border-border bg-card hover:bg-muted/50'}`}
           >
-            <p className="text-lg font-bold text-foreground">{contadores[key] || 0}</p>
+            <p className="text-lg font-bold text-foreground">{statusCounts[key] || 0}</p>
             <p className="text-xs text-muted-foreground mt-0.5">{config.label}</p>
           </button>
         ))}
@@ -529,6 +557,7 @@ export function ProspectsTab() {
                                         });
                                         if (!res.ok && res.status !== 204) throw new Error();
                                         setProspects(prev => prev.map(pr => pr.id === p.id ? { ...pr, status: novoStatus } : pr));
+                                        carregarContadores();
                                         toast({ title: 'Status atualizado!' });
                                       } catch {
                                         toast({ title: 'Erro ao atualizar status', variant: 'destructive' });
