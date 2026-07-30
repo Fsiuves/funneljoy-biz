@@ -269,18 +269,28 @@ export function ProspectsTab() {
             <p className="text-muted-foreground">Nenhum prospect encontrado.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="w-full">
+            <table className="w-full table-fixed">
+              <colgroup>
+                <col className="w-[26%]" />
+                <col className="w-[14%]" />
+                <col className="w-[11%]" />
+                <col className="w-[6%]" />
+                <col className="w-[8%]" />
+                <col className="w-[12%]" />
+                <col className="w-[15%]" />
+                <col className="w-[8%]" />
+              </colgroup>
               <thead>
                 <tr className="border-b border-border bg-muted/50">
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Empresa</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Contato</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Nicho</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Fit</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Links</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Status</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Última resposta</th>
-                  <th className="text-right px-6 py-4 text-sm font-semibold text-foreground">Ver</th>
+                  <th className="text-left px-4 py-3 text-sm font-semibold text-foreground">Empresa</th>
+                  <th className="text-left px-4 py-3 text-sm font-semibold text-foreground">Contato</th>
+                  <th className="text-left px-4 py-3 text-sm font-semibold text-foreground">Nicho</th>
+                  <th className="text-left px-4 py-3 text-sm font-semibold text-foreground">Fit</th>
+                  <th className="text-left px-4 py-3 text-sm font-semibold text-foreground">Links</th>
+                  <th className="text-left px-4 py-3 text-sm font-semibold text-foreground">Status</th>
+                  <th className="text-left px-4 py-3 text-sm font-semibold text-foreground">Última resposta</th>
+                  <th className="text-right px-4 py-3 text-sm font-semibold text-foreground">Ver</th>
                 </tr>
               </thead>
               <tbody>
