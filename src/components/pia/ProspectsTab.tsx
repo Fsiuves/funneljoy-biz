@@ -105,8 +105,15 @@ export function ProspectsTab() {
     if (reset) setRefreshing(true); else setLoadingMore(true);
     if (reset) carregarContadores();
     try {
+      const filtros: string[] = [];
+      if (filtroStatus !== 'todos') filtros.push(`status=eq.${filtroStatus}`);
+      if (busca.trim()) {
+        const termo = encodeURIComponent(`*${busca.trim()}*`);
+        filtros.push(`or=(nome.ilike.${termo},nicho.ilike.${termo},cidade.ilike.${termo})`);
+      }
+      const filtroQuery = filtros.length ? `&${filtros.join('&')}` : '';
       const res = await fetch(
-        `${SUPABASE_PIA_URL}/rest/v1/prospects?select=*&order=score_fit.desc.nullslast,data_criacao.desc&limit=${PAGE_SIZE}&offset=${currentOffset}`,
+        `${SUPABASE_PIA_URL}/rest/v1/prospects?select=*${filtroQuery}&order=score_fit.desc.nullslast,data_criacao.desc&limit=${PAGE_SIZE}&offset=${currentOffset}`,
         { headers: { apikey: SUPABASE_PIA_KEY, Authorization: `Bearer ${SUPABASE_PIA_KEY}` } }
       );
       const data = await res.json();
@@ -123,7 +130,15 @@ export function ProspectsTab() {
     }
   };
 
-  useEffect(() => { carregar(true); }, []);
+  // Recarrega do servidor sempre que o filtro de status ou a busca mudarem
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setExpandedId(null);
+      carregar(true);
+    }, busca ? 350 : 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtroStatus, busca]);
 
   const iniciarEdicao = (p: Prospect) => {
     setEditingId(p.id);
@@ -195,14 +210,7 @@ export function ProspectsTab() {
     }
   };
 
-  const filtrados = prospects.filter(p => {
-    const matchStatus = filtroStatus === 'todos' || p.status === filtroStatus;
-    const matchBusca = !busca ||
-      p.nome?.toLowerCase().includes(busca.toLowerCase()) ||
-      p.nicho?.toLowerCase().includes(busca.toLowerCase()) ||
-      p.cidade?.toLowerCase().includes(busca.toLowerCase());
-    return matchStatus && matchBusca;
-  });
+  const filtrados = prospects;
 
   if (loading) {
     return (
@@ -261,18 +269,28 @@ export function ProspectsTab() {
             <p className="text-muted-foreground">Nenhum prospect encontrado.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="w-full">
+            <table className="w-full table-fixed">
+              <colgroup>
+                <col className="w-[26%]" />
+                <col className="w-[14%]" />
+                <col className="w-[11%]" />
+                <col className="w-[6%]" />
+                <col className="w-[8%]" />
+                <col className="w-[12%]" />
+                <col className="w-[15%]" />
+                <col className="w-[8%]" />
+              </colgroup>
               <thead>
                 <tr className="border-b border-border bg-muted/50">
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Empresa</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Contato</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Nicho</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Fit</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Links</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Status</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Última resposta</th>
-                  <th className="text-right px-6 py-4 text-sm font-semibold text-foreground">Ver</th>
+                  <th className="text-left px-4 py-3 text-sm font-semibold text-foreground">Empresa</th>
+                  <th className="text-left px-4 py-3 text-sm font-semibold text-foreground">Contato</th>
+                  <th className="text-left px-4 py-3 text-sm font-semibold text-foreground">Nicho</th>
+                  <th className="text-left px-4 py-3 text-sm font-semibold text-foreground">Fit</th>
+                  <th className="text-left px-4 py-3 text-sm font-semibold text-foreground">Links</th>
+                  <th className="text-left px-4 py-3 text-sm font-semibold text-foreground">Status</th>
+                  <th className="text-left px-4 py-3 text-sm font-semibold text-foreground">Última resposta</th>
+                  <th className="text-right px-4 py-3 text-sm font-semibold text-foreground">Ver</th>
                 </tr>
               </thead>
               <tbody>
@@ -282,18 +300,18 @@ export function ProspectsTab() {
                   return (
                     <>
                       <tr key={p.id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-9 h-9 shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
                               <span className="text-xs font-semibold text-primary">
                                 {p.nome?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                               </span>
                             </div>
-                              <div>
-                                <p className="font-medium text-foreground text-sm">{p.nome}</p>
-                                <p className="text-xs text-muted-foreground">{p.cidade}</p>
+                              <div className="min-w-0">
+                                <p className="font-medium text-foreground text-sm truncate" title={p.nome}>{p.nome}</p>
+                                <p className="text-xs text-muted-foreground truncate">{p.cidade}</p>
                                 {p.data_criacao && (
-                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
                                     {p.status === 'novo' || p.status === 'pronto_para_envio'
                                       ? `Criado em: ${formatRelative(p.data_criacao)}`
                                       : `Abordado em: ${formatRelative(p.data_ultimo_contato || p.data_criacao)}`}
@@ -302,16 +320,16 @@ export function ProspectsTab() {
                               </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2 text-sm text-foreground">
-                            <Phone className="w-3.5 h-3.5 text-muted-foreground" />
-                            {p.telefone}
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2 text-sm text-foreground min-w-0">
+                            <Phone className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                            <span className="truncate" title={p.telefone}>{p.telefone}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4">
-                          <span className="text-sm text-foreground">{p.nicho}</span>
+                        <td className="px-4 py-3">
+                          <p className="text-sm text-foreground truncate" title={p.nicho}>{p.nicho}</p>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-3">
                           {typeof p.score_fit === 'number' ? (
                             <span className={`inline-flex items-center justify-center min-w-[2.5rem] px-2 py-1 rounded-md text-xs font-bold ${
                               p.score_fit >= 88 ? 'bg-success/10 text-success' :
@@ -322,7 +340,7 @@ export function ProspectsTab() {
                             <span className="text-muted-foreground text-xs">—</span>
                           )}
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             {p.website ? (
                               <a
@@ -352,21 +370,21 @@ export function ProspectsTab() {
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${sc.class}`}>
-                            <sc.icon className="w-3 h-3" />
-                            {sc.label}
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex max-w-full items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${sc.class}`}>
+                            <sc.icon className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{sc.label}</span>
                           </span>
                         </td>
-                        <td className="px-6 py-4">
-                          <p className="text-sm text-foreground max-w-xs truncate">
+                        <td className="px-4 py-3">
+                          <p className="text-sm text-foreground truncate" title={p.ultima_resposta || ''}>
                             {p.ultima_resposta || <span className="text-muted-foreground">—</span>}
                           </p>
                           {p.data_ultimo_contato && (
                             <p className="text-xs text-muted-foreground mt-0.5">{formatRelative(p.data_ultimo_contato)}</p>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-right">
+                        <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <button
                               onClick={() => excluirProspect(p)}
