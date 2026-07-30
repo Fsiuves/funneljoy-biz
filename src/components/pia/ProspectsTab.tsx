@@ -105,8 +105,15 @@ export function ProspectsTab() {
     if (reset) setRefreshing(true); else setLoadingMore(true);
     if (reset) carregarContadores();
     try {
+      const filtros: string[] = [];
+      if (filtroStatus !== 'todos') filtros.push(`status=eq.${filtroStatus}`);
+      if (busca.trim()) {
+        const termo = encodeURIComponent(`*${busca.trim()}*`);
+        filtros.push(`or=(nome.ilike.${termo},nicho.ilike.${termo},cidade.ilike.${termo})`);
+      }
+      const filtroQuery = filtros.length ? `&${filtros.join('&')}` : '';
       const res = await fetch(
-        `${SUPABASE_PIA_URL}/rest/v1/prospects?select=*&order=score_fit.desc.nullslast,data_criacao.desc&limit=${PAGE_SIZE}&offset=${currentOffset}`,
+        `${SUPABASE_PIA_URL}/rest/v1/prospects?select=*${filtroQuery}&order=score_fit.desc.nullslast,data_criacao.desc&limit=${PAGE_SIZE}&offset=${currentOffset}`,
         { headers: { apikey: SUPABASE_PIA_KEY, Authorization: `Bearer ${SUPABASE_PIA_KEY}` } }
       );
       const data = await res.json();
@@ -123,7 +130,15 @@ export function ProspectsTab() {
     }
   };
 
-  useEffect(() => { carregar(true); }, []);
+  // Recarrega do servidor sempre que o filtro de status ou a busca mudarem
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setExpandedId(null);
+      carregar(true);
+    }, busca ? 350 : 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtroStatus, busca]);
 
   const iniciarEdicao = (p: Prospect) => {
     setEditingId(p.id);
@@ -195,14 +210,7 @@ export function ProspectsTab() {
     }
   };
 
-  const filtrados = prospects.filter(p => {
-    const matchStatus = filtroStatus === 'todos' || p.status === filtroStatus;
-    const matchBusca = !busca ||
-      p.nome?.toLowerCase().includes(busca.toLowerCase()) ||
-      p.nicho?.toLowerCase().includes(busca.toLowerCase()) ||
-      p.cidade?.toLowerCase().includes(busca.toLowerCase());
-    return matchStatus && matchBusca;
-  });
+  const filtrados = prospects;
 
   if (loading) {
     return (
