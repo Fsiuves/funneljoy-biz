@@ -69,6 +69,9 @@ export function ProspectsTab() {
   const [refreshing, setRefreshing] = useState(false);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
   const [totalCount, setTotalCount] = useState(0);
+  const [chatProspect, setChatProspect] = useState<Prospect | null>(null);
+  const [chatMessages, setChatMessages] = useState<{ role: string; mensagem: string; data_criacao: string }[]>([]);
+  const [loadingChat, setLoadingChat] = useState(false);
   const { toast } = useToast();
 
   const carregarContadores = async () => {
@@ -207,6 +210,23 @@ export function ProspectsTab() {
       toast({ title: 'Prospect excluído com sucesso!' });
     } catch (e: any) {
       toast({ title: e.message || 'Erro ao excluir prospect', variant: 'destructive' });
+    }
+  };
+
+  const abrirConversa = async (p: Prospect) => {
+    setChatProspect(p);
+    setLoadingChat(true);
+    try {
+      const res = await fetch(
+        `${SUPABASE_PIA_URL}/rest/v1/conversas?telefone=eq.${p.telefone}&order=data_criacao.asc&select=role,mensagem,data_criacao`,
+        { headers: { apikey: SUPABASE_PIA_KEY, Authorization: `Bearer ${SUPABASE_PIA_KEY}` } }
+      );
+      const data = await res.json();
+      setChatMessages(Array.isArray(data) ? data : []);
+    } catch {
+      toast({ title: 'Erro ao carregar conversa', variant: 'destructive' });
+    } finally {
+      setLoadingChat(false);
     }
   };
 
@@ -523,7 +543,16 @@ export function ProspectsTab() {
                                 </div>
                               </div>
                               <div className="bg-card rounded-lg p-4 border border-border">
-                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Qualificação SDR</p>
+                                <div className="flex items-center justify-between mb-2">
+                                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Qualificação SDR</p>
+                                  <button
+                                    onClick={() => abrirConversa(p)}
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors"
+                                  >
+                                    <MessageSquare className="w-3.5 h-3.5" />
+                                    Ver conversa completa
+                                  </button>
+                                </div>
                                 {p.data_criacao && (
                                   <p className="text-xs text-muted-foreground mb-2">
                                     {p.status === 'novo' || p.status === 'pronto_para_envio'
@@ -614,6 +643,59 @@ export function ProspectsTab() {
           </div>
         )}
       </div>
+      {/* Modal de conversa completa */}
+      {chatProspect && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-xl shadow-card w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <div>
+                <p className="font-semibold text-foreground">{chatProspect.nome}</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                  <Phone className="w-3 h-3" />
+                  {chatProspect.telefone}
+                </p>
+              </div>
+              <button
+                onClick={() => setChatProspect(null)}
+                className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[300px]">
+              {loadingChat ? (
+                <div className="flex items-center justify-center h-full min-h-[300px]">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : chatMessages.length === 0 ? (
+                <div className="flex items-center justify-center h-full min-h-[300px]">
+                  <p className="text-sm text-muted-foreground">Nenhuma mensagem registrada nesta conversa.</p>
+                </div>
+              ) : (
+                chatMessages.map((m, i) => (
+                  <div
+                    key={i}
+                    className={`flex ${m.role === 'assistant' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-[80%] rounded-lg px-3 py-2 ${
+                        m.role === 'assistant'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-foreground'
+                      }`}
+                    >
+                      <p className="text-sm whitespace-pre-wrap">{m.mensagem}</p>
+                      <p className={`text-[10px] mt-1 ${m.role === 'assistant' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                        {new Date(m.data_criacao).toLocaleString('pt-BR')}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
