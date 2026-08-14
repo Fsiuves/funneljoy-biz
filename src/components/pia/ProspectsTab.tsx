@@ -213,6 +213,23 @@ export function ProspectsTab() {
     }
   };
 
+  const abrirConversa = async (p: Prospect) => {
+    setChatProspect(p);
+    setLoadingChat(true);
+    try {
+      const res = await fetch(
+        `${SUPABASE_PIA_URL}/rest/v1/conversas?telefone=eq.${p.telefone}&order=data_criacao.asc&select=role,mensagem,data_criacao`,
+        { headers: { apikey: SUPABASE_PIA_KEY, Authorization: `Bearer ${SUPABASE_PIA_KEY}` } }
+      );
+      const data = await res.json();
+      setChatMessages(Array.isArray(data) ? data : []);
+    } catch {
+      toast({ title: 'Erro ao carregar conversa', variant: 'destructive' });
+    } finally {
+      setLoadingChat(false);
+    }
+  };
+
   const filtrados = prospects;
 
   if (loading) {
