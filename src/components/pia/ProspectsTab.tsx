@@ -69,6 +69,9 @@ export function ProspectsTab() {
   const [refreshing, setRefreshing] = useState(false);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
   const [totalCount, setTotalCount] = useState(0);
+  const [chatProspect, setChatProspect] = useState<Prospect | null>(null);
+  const [chatMessages, setChatMessages] = useState<{ role: string; mensagem: string; data_criacao: string }[]>([]);
+  const [loadingChat, setLoadingChat] = useState(false);
   const { toast } = useToast();
 
   const carregarContadores = async () => {
