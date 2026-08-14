@@ -543,7 +543,16 @@ export function ProspectsTab() {
                                 </div>
                               </div>
                               <div className="bg-card rounded-lg p-4 border border-border">
-                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Qualificação SDR</p>
+                                <div className="flex items-center justify-between mb-2">
+                                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Qualificação SDR</p>
+                                  <button
+                                    onClick={() => abrirConversa(p)}
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors"
+                                  >
+                                    <MessageSquare className="w-3.5 h-3.5" />
+                                    Ver conversa completa
+                                  </button>
+                                </div>
                                 {p.data_criacao && (
                                   <p className="text-xs text-muted-foreground mb-2">
                                     {p.status === 'novo' || p.status === 'pronto_para_envio'
