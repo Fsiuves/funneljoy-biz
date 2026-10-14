@@ -6,12 +6,15 @@ import { AddLeadModal } from '@/components/leads/AddLeadModal';
 import { EditLeadModal } from '@/components/leads/EditLeadModal';
 import { LeadDetailsModal } from '@/components/leads/LeadDetailsModal';
 import { useLeads, useCreateLead, useDeleteLead, useUpdateLead } from '@/hooks/useLeads';
-import { Lead, LeadSource, LEAD_STAGES, LEAD_SOURCES } from '@/types/crm';
+import { Lead, LeadSource, LEAD_SOURCES } from '@/types/crm';
+import { useEtapas, useVocabulario } from '@/hooks/useEmpresa';
 import { Phone, Mail, Building2, MoreHorizontal, Eye, Edit, Trash2, Loader2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export default function Leads() {
+  const { rotulo, cor } = useEtapas();
+  const v = useVocabulario();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -55,7 +58,7 @@ export default function Leads() {
   };
 
   const handleDeleteLead = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este lead?')) {
+    if (confirm(`Tem certeza que deseja excluir ${v.este}?`)) {
       deleteLead.mutate(id);
     }
     setOpenMenuId(null);
@@ -71,23 +74,8 @@ export default function Leads() {
     setOpenMenuId(null);
   };
 
-  const getStageLabel = (stage: string) => {
-    return LEAD_STAGES.find(s => s.value === stage)?.label || stage;
-  };
-
   const getSourceLabel = (source: string) => {
     return LEAD_SOURCES.find(s => s.value === source)?.label || source;
-  };
-
-  const getStageBadgeClass = (stage: string) => {
-    switch (stage) {
-      case 'new': return 'badge-stage-new';
-      case 'negotiation': return 'badge-stage-negotiation';
-      case 'proposal': return 'badge-stage-proposal';
-      case 'won': return 'badge-stage-won';
-      case 'lost': return 'badge-stage-lost';
-      default: return 'bg-muted text-muted-foreground';
-    }
   };
 
   const formatCurrency = (value?: number) => {
@@ -111,10 +99,10 @@ export default function Leads() {
   return (
     <MainLayout>
       <Header 
-        title="Leads" 
+        title={v.Leads} 
         subtitle="Gerencie todos os seus contatos"
         onAddClick={() => setIsModalOpen(true)}
-        addButtonLabel="Novo Lead"
+        addButtonLabel={v.novo}
       />
 
       {/* Search */}
@@ -139,12 +127,12 @@ export default function Leads() {
       <div className="bg-card rounded-xl shadow-card overflow-hidden animate-fade-in">
         {filteredLeads.length === 0 ? (
           <div className="p-12 text-center">
-            <p className="text-muted-foreground">Nenhum lead cadastrado ainda.</p>
+            <p className="text-muted-foreground">{v.nenhum} cadastrado ainda.</p>
             <button
               onClick={() => setIsModalOpen(true)}
               className="mt-4 text-primary hover:underline"
             >
-              Adicione seu primeiro lead
+              Adicione {v.primeiro}
             </button>
           </div>
         ) : (
@@ -152,7 +140,7 @@ export default function Leads() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Lead</th>
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">{v.Lead}</th>
                   <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Contato</th>
                   <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Origem</th>
                   <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Etapa</th>
@@ -176,11 +164,18 @@ export default function Leads() {
                             {lead.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                           </span>
                         </div>
-                        <div>
-                          <p className="font-medium text-foreground">{lead.name}</p>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-foreground truncate">{lead.name}</p>
+                            {(lead as any).unidade && (
+                              <span className="shrink-0 text-[11px] leading-none px-1.5 py-1 rounded border bg-muted text-muted-foreground">
+                                {(lead as any).unidade}
+                              </span>
+                            )}
+                          </div>
                           {lead.company && (
-                            <p className="text-sm text-muted-foreground flex items-center gap-1">
-                              <Building2 className="w-3 h-3" />
+                            <p className="text-sm text-muted-foreground flex items-center gap-1 truncate">
+                              <Building2 className="w-3 h-3 shrink-0" />
                               {lead.company}
                             </p>
                           )}
@@ -205,8 +200,11 @@ export default function Leads() {
                       <span className="text-sm text-foreground">{getSourceLabel(lead.source)}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${getStageBadgeClass(lead.stage)}`}>
-                        {getStageLabel(lead.stage)}
+                      <span
+                        className="inline-block px-3 py-1 text-xs font-medium rounded-full text-white"
+                        style={{ backgroundColor: cor(lead.stage) }}
+                      >
+                        {rotulo(lead.stage)}
                       </span>
                     </td>
                     <td className="px-6 py-4">

@@ -1,4 +1,5 @@
-import { Lead, LEAD_STAGES, LEAD_SOURCES } from '@/types/crm';
+import { Lead, LEAD_SOURCES } from '@/types/crm';
+import { useEtapas, useVocabulario } from '@/hooks/useEmpresa';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -7,33 +8,20 @@ interface RecentLeadsProps {
 }
 
 export function RecentLeads({ leads }: RecentLeadsProps) {
+  const { rotulo, cor } = useEtapas();
+  const v = useVocabulario();
   const recentLeads = [...leads]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .slice(0, 5);
-
-  const getStageLabel = (stage: string) => {
-    return LEAD_STAGES.find(s => s.value === stage)?.label || stage;
-  };
 
   const getSourceLabel = (source: string) => {
     return LEAD_SOURCES.find(s => s.value === source)?.label || source;
   };
 
-  const getStageBadgeClass = (stage: string) => {
-    switch (stage) {
-      case 'new': return 'badge-stage-new';
-      case 'negotiation': return 'badge-stage-negotiation';
-      case 'proposal': return 'badge-stage-proposal';
-      case 'won': return 'badge-stage-won';
-      case 'lost': return 'badge-stage-lost';
-      default: return 'bg-muted text-muted-foreground';
-    }
-  };
-
   return (
     <div className="bg-card rounded-xl p-6 shadow-card animate-fade-in">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-foreground">Leads Recentes</h3>
+        <h3 className="text-lg font-semibold text-foreground">{v.Leads} recentes</h3>
         <a href="/leads" className="text-sm text-primary hover:underline">Ver todos</a>
       </div>
       <div className="space-y-4">
@@ -53,8 +41,11 @@ export function RecentLeads({ leads }: RecentLeadsProps) {
               <p className="text-sm text-muted-foreground truncate">{lead.company}</p>
             </div>
             <div className="text-right">
-              <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${getStageBadgeClass(lead.stage)}`}>
-                {getStageLabel(lead.stage)}
+              <span
+                className="inline-block px-2 py-1 text-xs font-medium rounded-full text-white"
+                style={{ backgroundColor: cor(lead.stage) }}
+              >
+                {rotulo(lead.stage)}
               </span>
               <p className="text-xs text-muted-foreground mt-1">
                 {formatDistanceToNow(lead.createdAt, { addSuffix: true, locale: ptBR })}

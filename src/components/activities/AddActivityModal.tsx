@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useVocabulario } from '@/hooks/useEmpresa';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -39,6 +40,7 @@ export function AddActivityModal({
   const { data: leads = [] } = useLeads();
   const createActivity = useCreateActivity();
   const updateLead = useUpdateLead();
+  const v = useVocabulario();
 
   const [selectedLeadId, setSelectedLeadId] = useState<string>(preSelectedLead?.id || '');
   const [activityType, setActivityType] = useState<ActivityType>(preSelectedType || 'call');
@@ -106,10 +108,10 @@ export function AddActivityModal({
           {/* Lead Selection */}
           {!preSelectedLead && (
             <div className="space-y-2">
-              <Label>Lead</Label>
+              <Label>{v.Lead}</Label>
               <Select value={selectedLeadId} onValueChange={setSelectedLeadId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione um lead" />
+                  <SelectValue placeholder={`Selecione ${v.um}`} />
                 </SelectTrigger>
                 <SelectContent>
                   {leads.map((lead) => (

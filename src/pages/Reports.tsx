@@ -2,10 +2,13 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { useLeads } from '@/hooks/useLeads';
-import { LEAD_SOURCES, LEAD_STAGES } from '@/types/crm';
+import { LEAD_SOURCES } from '@/types/crm';
+import { useEtapas, useVocabulario } from '@/hooks/useEmpresa';
 import { Users, TrendingUp, Target, DollarSign, Loader2 } from 'lucide-react';
 
 export default function Reports() {
+  const { etapas, ehGanho, estaAberta } = useEtapas();
+  const v = useVocabulario();
   const { data: leads = [], isLoading } = useLeads();
 
   const formatCurrency = (value: number) => {
@@ -15,7 +18,7 @@ export default function Reports() {
     }).format(value);
   };
 
-  const wonLeads = leads.filter(l => l.stage === 'won');
+  const wonLeads = leads.filter(l => ehGanho(l.stage));
   const conversionRate = leads.length > 0 ? Math.round((wonLeads.length / leads.length) * 100) : 0;
   const totalRevenue = wonLeads.reduce((sum, l) => sum + (l.value || 0), 0);
 
@@ -27,7 +30,7 @@ export default function Reports() {
   };
 
   const getStageStats = () => {
-    return LEAD_STAGES.map(stage => ({
+    return etapas.map(stage => ({
       ...stage,
       count: leads.filter(lead => lead.stage === stage.value).length,
       totalValue: leads
@@ -64,13 +67,13 @@ export default function Reports() {
           icon={Target}
         />
         <MetricCard
-          title="Leads Ativos"
-          value={leads.filter(l => !['won', 'lost'].includes(l.stage)).length}
+          title={`${v.Leads} ativos`}
+          value={leads.filter(l => estaAberta(l.stage)).length}
           icon={TrendingUp}
           iconColor="text-warning"
         />
         <MetricCard
-          title="Total de Leads"
+          title={`Total de ${v.leads}`}
           value={leads.length}
           icon={Users}
           iconColor="text-primary"
@@ -86,7 +89,7 @@ export default function Reports() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Source Distribution */}
         <div className="bg-card rounded-xl p-6 shadow-card animate-fade-in">
-          <h3 className="text-lg font-semibold text-foreground mb-6">Leads por Origem</h3>
+          <h3 className="text-lg font-semibold text-foreground mb-6">{v.Leads} por origem</h3>
           <div className="space-y-4">
             {sourceStats.map((source, index) => {
               const percentage = leads.length > 0 ? (source.count / leads.length) * 100 : 0;
@@ -94,7 +97,7 @@ export default function Reports() {
                 <div key={source.value} className="animate-slide-up" style={{ animationDelay: `${index * 0.1}s` }}>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-foreground">{source.label}</span>
-                    <span className="text-sm text-muted-foreground">{source.count} leads ({percentage.toFixed(0)}%)</span>
+                    <span className="text-sm text-muted-foreground">{source.count} {v.leads} ({percentage.toFixed(0)}%)</span>
                   </div>
                   <div className="h-3 bg-muted rounded-full overflow-hidden">
                     <div
@@ -110,21 +113,17 @@ export default function Reports() {
 
         {/* Stage Distribution */}
         <div className="bg-card rounded-xl p-6 shadow-card animate-fade-in">
-          <h3 className="text-lg font-semibold text-foreground mb-6">Leads por Etapa</h3>
+          <h3 className="text-lg font-semibold text-foreground mb-6">{v.Leads} por etapa</h3>
           <div className="space-y-4">
             {stageStats.map((stage, index) => {
               const percentage = leads.length > 0 ? (stage.count / leads.length) * 100 : 0;
-              const stageColor = stage.value === 'new' ? 'hsl(var(--stage-new))' :
-                                 stage.value === 'negotiation' ? 'hsl(var(--stage-negotiation))' :
-                                 stage.value === 'proposal' ? 'hsl(var(--stage-proposal))' :
-                                 stage.value === 'won' ? 'hsl(var(--stage-won))' :
-                                 'hsl(var(--stage-lost))';
+              const stageColor = stage.cor;
               return (
                 <div key={stage.value} className="animate-slide-up" style={{ animationDelay: `${index * 0.1}s` }}>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-foreground">{stage.label}</span>
                     <div className="text-right">
-                      <span className="text-sm text-muted-foreground">{stage.count} leads</span>
+                      <span className="text-sm text-muted-foreground">{stage.count} {v.leads}</span>
                       <span className="text-sm font-medium text-foreground ml-2">{formatCurrency(stage.totalValue)}</span>
                     </div>
                   </div>

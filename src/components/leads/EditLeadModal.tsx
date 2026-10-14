@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useVocabulario } from '@/hooks/useEmpresa';
 import { X, Loader2 } from 'lucide-react';
 import { Lead, LeadSource, LEAD_SOURCES } from '@/types/crm';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ const currencyFromNumber = (n?: number) =>
   n ? new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) : '';
 
 export function EditLeadModal({ isOpen, onClose, lead, onSave, isLoading }: EditLeadModalProps) {
+  const v = useVocabulario();
   const [form, setForm] = useState({
     name: '', email: '', phone: '', company: '', source: 'website' as LeadSource, value: '',
   });
@@ -75,7 +77,7 @@ export function EditLeadModal({ isOpen, onClose, lead, onSave, isLoading }: Edit
       <div className="absolute inset-0 bg-foreground/20 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-card rounded-2xl shadow-lg w-full max-w-lg mx-4 animate-scale-in">
         <div className="flex items-center justify-between p-6 border-b border-border">
-          <h2 className="text-xl font-semibold text-foreground">Editar Lead</h2>
+          <h2 className="text-xl font-semibold text-foreground">Editar {v.lead}</h2>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors">
             <X className="w-5 h-5 text-muted-foreground" />
           </button>

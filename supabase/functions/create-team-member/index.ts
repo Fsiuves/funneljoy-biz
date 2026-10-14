@@ -18,9 +18,11 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Client with caller's token to verify identity
+    // Client with caller's token to verify identity. As RPCs moram no schema
+    // crm desde a migração: sem o schema, o PostgREST procura em public e falha.
     const supabaseCaller = createClient(supabaseUrl, serviceRoleKey, {
       global: { headers: { Authorization: authHeader } },
+      db: { schema: "crm" },
     });
 
     const { data: { user: caller }, error: callerError } = await supabaseCaller.auth.getUser();
@@ -31,16 +33,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { email, name, password, role } = await req.json();
+    const { email, name, password, role, unidade } = await req.json();
 
     // Admin client with service role
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
     // Step 1: Validate via RPC (uses caller's context)
+    // A unidade vai já no convite: as regras da gerente e da atendente são
+    // conferidas antes de a conta existir, para não sobrar conta órfã.
     const { data: validation, error: validationError } = await supabaseCaller.rpc("invite_team_member", {
       _email: email,
       _name: name,
       _role: role || "sales",
+      _unidade: unidade || null,
     });
 
     if (validationError) {
@@ -65,7 +70,8 @@ Deno.serve(async (req) => {
       email,
       password,
       email_confirm: true,
-      user_metadata: { name },
+      // Senha escolhida por quem cadastrou: a pessoa cria a dela no primeiro acesso.
+      user_metadata: { name, senha_provisoria: true },
     });
 
     if (createError) {
@@ -107,6 +113,7 @@ Deno.serve(async (req) => {
       _email: email,
       _name: name,
       _role: role || "sales",
+      _unidade: unidade || null,
     });
 
     if (setupError) {

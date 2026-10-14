@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useVocabulario } from '@/hooks/useEmpresa';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { KanbanBoard } from '@/components/leads/KanbanBoard';
@@ -14,6 +15,7 @@ export default function Funnel() {
   const { data: leads = [], isLoading } = useLeads();
   const createLead = useCreateLead();
   const updateStage = useUpdateLeadStage();
+  const v = useVocabulario();
 
   const handleStageChange = (leadId: string, newStage: LeadStage) => {
     updateStage.mutate({ id: leadId, stage: newStage });
@@ -45,10 +47,10 @@ export default function Funnel() {
   return (
     <MainLayout>
       <Header 
-        title="Funil de Vendas" 
-        subtitle="Acompanhe o progresso dos seus leads"
+        title={v.funil} 
+        subtitle={`Acompanhe cada ${v.lead} de etapa em etapa`}
         onAddClick={() => setIsModalOpen(true)}
-        addButtonLabel="Novo Lead"
+        addButtonLabel={v.novo}
       />
 
       <KanbanBoard 

@@ -1,4 +1,4 @@
-export type LeadSource = 'instagram' | 'ads' | 'website' | 'referral' | 'other';
+export type LeadSource = 'instagram' | 'ads' | 'website' | 'referral' | 'whatsapp' | 'other';
 
 export type LeadStage =
   | 'new'
@@ -12,7 +12,9 @@ export type LeadStage =
   | 'proposal'
   | 'won'
   | 'lost'
-  | 'no_interest';
+  | 'no_interest'
+  // Etapas próprias da empresa (crm.funil_etapas) têm outras chaves.
+  | (string & {});
 
 export type ActivityType = 'call' | 'whatsapp' | 'email' | 'meeting' | 'note';
 
@@ -96,6 +98,7 @@ export const LEAD_SOURCES: { value: LeadSource; label: string }[] = [
   { value: 'ads', label: 'Anúncios' },
   { value: 'website', label: 'Site' },
   { value: 'referral', label: 'Indicação' },
+  { value: 'whatsapp', label: 'WhatsApp' },
   { value: 'other', label: 'Outro' },
 ];
 

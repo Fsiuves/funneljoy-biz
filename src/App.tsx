@@ -14,6 +14,11 @@ import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 import PIA from "./pages/PIA";
+import Atendimento from "./pages/Atendimento";
+import Agenda from "./pages/Agenda";
+import Resultados from "./pages/Resultados";
+import Painel from "./pages/Painel";
+import { MarcaProvider } from "@/hooks/useMarca";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +27,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <MarcaProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<Auth />} />
@@ -31,6 +37,10 @@ const App = () => (
             </ProtectedRoute>
           } />
           <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+          <Route path="/atendimento" element={<ProtectedRoute><Atendimento /></ProtectedRoute>} />
+          <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
+          <Route path="/resultados" element={<ProtectedRoute><Resultados /></ProtectedRoute>} />
+          <Route path="/painel" element={<ProtectedRoute><Painel /></ProtectedRoute>} />
           <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
           <Route path="/funnel" element={<ProtectedRoute><Funnel /></ProtectedRoute>} />
           <Route path="/followups" element={<ProtectedRoute><FollowUps /></ProtectedRoute>} />
@@ -40,6 +50,7 @@ const App = () => (
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
+      </MarcaProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

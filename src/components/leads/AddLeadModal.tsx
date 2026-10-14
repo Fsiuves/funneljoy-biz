@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useVocabulario } from '@/hooks/useEmpresa';
 import { X, Loader2, AlertTriangle } from 'lucide-react';
 import { Lead, LeadSource, LEAD_SOURCES } from '@/types/crm';
 import { Button } from '@/components/ui/button';
@@ -51,6 +52,7 @@ const parseCurrency = (formatted: string): number => {
 };
 
 export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads = [] }: AddLeadModalProps) {
+  const v = useVocabulario();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -129,7 +131,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
       <div className="relative bg-card rounded-2xl shadow-lg w-full max-w-lg mx-4 animate-scale-in">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border">
-          <h2 className="text-xl font-semibold text-foreground">Novo Lead</h2>
+          <h2 className="text-xl font-semibold text-foreground">{v.novo}</h2>
           <button
             onClick={onClose}
             className="p-2 rounded-lg hover:bg-muted transition-colors"
@@ -239,7 +241,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
               <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-destructive font-medium">
-                  Já existe um lead com este telefone: {phoneDuplicate.name}
+                  Já existe {v.um} com este telefone: {phoneDuplicate.name}
                   {phoneDuplicate.company ? ` (${phoneDuplicate.company})` : ''}
                 </p>
                 <label className="flex items-center gap-2 mt-2 text-foreground">
@@ -257,7 +259,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
           {!phoneDuplicate && nameCompanyMatches.length > 0 && (
             <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm">
               <p className="text-foreground font-medium mb-1">
-                Possíveis leads já cadastrados:
+                Possíveis {v.leads} já cadastrados:
               </p>
               <ul className="space-y-1">
                 {nameCompanyMatches.map((l) => (
@@ -275,7 +277,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
               Cancelar
             </Button>
             <Button type="submit" className="flex-1 btn-primary" disabled={isLoading || (!!phoneDuplicate && !forceCreate)}>
-              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Adicionar Lead'}
+              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : `Adicionar ${v.lead}`}
             </Button>
           </div>
         </form>

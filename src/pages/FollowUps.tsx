@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useVocabulario } from '@/hooks/useEmpresa';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,7 @@ export default function FollowUps() {
   const { data: leads = [], isLoading: leadsLoading } = useLeads();
   const { data: activities = [], isLoading: activitiesLoading } = useActivities();
   const updateLead = useUpdateLead();
+  const v = useVocabulario();
   const createActivity = useCreateActivity();
   const leadsWithFollowUp = leads.filter(lead => lead.nextFollowUp);
 
@@ -304,7 +306,7 @@ export default function FollowUps() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Buscar por lead, empresa ou descrição..."
+                placeholder={`Buscar por ${v.lead}, empresa ou descrição...`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="input-field pl-10 w-full"

@@ -1,4 +1,5 @@
 import { Bell, Search, Plus } from 'lucide-react';
+import { useVocabulario } from '@/hooks/useEmpresa';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
@@ -14,6 +15,7 @@ interface HeaderProps {
 export function Header({ title, subtitle, onAddClick, addButtonLabel, action }: HeaderProps) {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
+  const v = useVocabulario();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,7 +41,7 @@ export function Header({ title, subtitle, onAddClick, addButtonLabel, action }: 
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar lead..."
+            placeholder={`Buscar ${v.lead}...`}
             className="input-field pl-10 w-64"
           />
         </form>

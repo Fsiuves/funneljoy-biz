@@ -14,6 +14,7 @@ interface Tenant {
   primary_color?: string | null;
   secondary_color?: string | null;
   pia_ativo?: boolean | null;
+  dominio?: string | null;
 }
 
 interface Profile {
@@ -140,11 +141,17 @@ export function useTenant() {
     }
   };
 
-  const inviteTeamMember = async (email: string, name: string, password: string, role: 'admin' | 'manager' | 'sales' = 'sales') => {
+  const inviteTeamMember = async (
+    email: string,
+    name: string,
+    password: string,
+    role: 'admin' | 'manager' | 'atendente' | 'sales' = 'sales',
+    unidade: string | null = null,
+  ) => {
     if (!tenant) return { error: 'No tenant found' };
 
     const { data, error } = await supabase.functions.invoke('create-team-member', {
-      body: { email, name, password, role },
+      body: { email, name, password, role, unidade },
     });
 
     if (error) {
@@ -159,7 +166,14 @@ export function useTenant() {
         invalid_email: 'Email inválido',
         invalid_name: 'Nome deve ter pelo menos 2 caracteres',
         invalid_role: 'Função inválida',
-        email_already_exists: 'Este email já está cadastrado nesta empresa',
+        unidade_invalida: 'Unidade não encontrada nesta empresa',
+        email_em_outra_empresa: 'Este email já pertence a outra empresa',
+        email_already_exists: 'Este usuário ou email já está cadastrado nesta empresa',
+        usuario_de_outra_empresa: 'Esse usuário pertence a outra empresa',
+        so_atendente: 'A gerente cadastra só atendentes',
+        outra_unidade: 'Você só cadastra atendentes da sua unidade',
+        atendente_sem_unidade: 'Atendente precisa de uma unidade',
+        ja_cadastrado: 'Essa pessoa já está na equipe',
       };
       return { error: errorMessages[data.error] || data.error };
     }

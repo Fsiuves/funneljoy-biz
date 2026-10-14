@@ -1,1 +1,4 @@
-project_id = "dtgsdqcszvmioaoffmna"
+# Projeto em uso desde a Fase 0 (set/2026), "Analise WhatsApp", onde vive o
+# schema `crm`. O valor anterior, dtgsdqcszvmioaoffmna, era o banco do Lovable,
+# aposentado na migracao: comando sem --project-ref ia para o lugar errado.
+project_id = "ygxlplfdrpkxqszesmtn"

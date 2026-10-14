@@ -155,7 +155,7 @@
   }
 
   .sidebar-item-active {
-    @apply bg-sidebar-accent text-sidebar-foreground font-medium;
+    @apply bg-sidebar-accent text-sidebar-foreground font-medium shadow-[inset_3px_0_0_hsl(var(--sidebar-primary))];
   }
 
   .badge-stage-new {

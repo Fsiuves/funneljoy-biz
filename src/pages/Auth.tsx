@@ -1,21 +1,43 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useMarca } from '@/hooks/useMarca';
+import { aplicarMarcaDoEndereco, buscarMarca, hostDaMarca } from '@/lib/marca';
+import { emailDoUsuario, pareceEmail } from '@/lib/usuario';
+import { CHAVE_ERRO_LOGIN } from '@/components/auth/ProtectedRoute';
 import { Button } from '@/components/ui/button';
-import { Mail, Lock, User, Building2, Loader2 } from 'lucide-react';
+import { Mail, Lock, User, Building2, Loader2, Eye, EyeOff } from 'lucide-react';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [mostrarSenha, setMostrarSenha] = useState(false);
   const [name, setName] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
-  
+
   const { signIn, signUp, isAuthenticated, loading: authLoading } = useAuth();
+  const { marca } = useMarca();
   const navigate = useNavigate();
+  // No endereço de uma empresa só entra quem ela cadastrou: sem "cadastre sua empresa".
+  const enderecoProprio = !!marca;
+
+  // Quem saiu de uma empresa com outra cara volta para a do endereço.
+  useEffect(() => {
+    aplicarMarcaDoEndereco(marca);
+    try {
+      const recado = sessionStorage.getItem(CHAVE_ERRO_LOGIN);
+      if (recado) {
+        setError(recado);
+        sessionStorage.removeItem(CHAVE_ERRO_LOGIN);
+      }
+    } catch {
+      // Sem armazenamento não há recado.
+    }
+  }, [marca]);
 
   // Redirect authenticated users away from auth page
   useEffect(() => {
@@ -32,10 +54,21 @@ export default function Auth() {
 
     try {
       if (isLogin) {
-        const { error } = await signIn(email, password);
+        // No endereço de uma empresa entra-se também por usuário (nome.sobrenome):
+        // vira o endereço interno daquela empresa. Fora dele, só email.
+        let login = email.trim();
+        if (!pareceEmail(login)) {
+          const slug = marca?.slug ?? (marca ? (await buscarMarca(hostDaMarca()))?.slug : null);
+          if (!slug) {
+            setError('Aqui o acesso é pelo email. Para entrar com usuário, use o endereço da sua empresa.');
+            return;
+          }
+          login = emailDoUsuario(login, slug);
+        }
+        const { error } = await signIn(login, password);
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
-            setError('Email ou senha inválidos');
+            setError(enderecoProprio ? 'Usuário ou senha inválidos' : 'Email ou senha inválidos');
           } else {
             setError(error.message);
           }
@@ -82,23 +115,48 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center">
-              <span className="text-2xl font-bold text-primary-foreground">C</span>
+    <div className="min-h-screen bg-background flex flex-col lg:flex-row">
+      {/* Marca */}
+      <aside className="bg-sidebar text-sidebar-foreground lg:w-[44%] flex flex-col justify-between px-8 py-8 lg:px-14 lg:py-12">
+        <div className="flex justify-center lg:justify-start">
+          {marca?.logoUrl ? (
+            <img src={marca.logoUrl} alt={marca.nome} className="h-16 lg:h-28 w-auto object-contain" />
+          ) : (
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center">
+                <span className="text-xl font-bold text-primary-foreground">C</span>
+              </div>
+              <span className="text-xl font-bold">
+                CRM <span className="text-sidebar-primary">{marca?.nome ?? 'Dom Intelligence'}</span>
+              </span>
             </div>
-          </div>
-          <h1 className="text-2xl font-bold text-foreground">CRM Dom Intelligence</h1>
-          <p className="text-muted-foreground mt-2">
-            {isLogin ? 'Entre na sua conta' : 'Cadastre sua empresa'}
-          </p>
+          )}
         </div>
 
-        {/* Form */}
-        <div className="bg-card rounded-2xl shadow-card p-8 animate-fade-in">
+        <div className="hidden lg:block max-w-md">
+          <p className="text-3xl font-semibold leading-snug text-sidebar-accent-foreground">
+            Atendimento, funil e resultados em um só lugar.
+          </p>
+          <div className="mt-5 h-1 w-16 rounded-full bg-sidebar-primary" />
+        </div>
+
+        <p className="hidden lg:block text-xs text-sidebar-foreground/50">
+          {enderecoProprio ? 'Tecnologia Dom Intelligence' : 'Dom Intelligence'}
+        </p>
+      </aside>
+
+      {/* Formulário */}
+      <main className="flex-1 flex items-center justify-center p-6 lg:p-12">
+        <div className="w-full max-w-sm animate-fade-in">
+          <h1 className="text-2xl font-bold text-foreground">
+            {isLogin ? 'Entrar' : 'Cadastre sua empresa'}
+          </h1>
+          <p className="text-muted-foreground mt-1 mb-8">
+            {enderecoProprio
+              ? `Acesso da equipe ${marca!.nome}`
+              : isLogin ? 'Entre na sua conta' : 'Crie a conta da sua empresa'}
+          </p>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
               <>
@@ -139,17 +197,25 @@ export default function Auth() {
 
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
-                Email
+                {isLogin && enderecoProprio ? 'Usuário ou email' : 'Email'}
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                {isLogin && enderecoProprio ? (
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                ) : (
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                )}
                 <input
-                  type="email"
+                  type={isLogin && enderecoProprio ? 'text' : 'email'}
                   required
+                  autoComplete={isLogin && enderecoProprio ? 'username' : 'email'}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="input-field pl-10"
-                  placeholder="seu@email.com"
+                  placeholder={isLogin && enderecoProprio ? 'nome.sobrenome' : 'seu@email.com'}
                 />
               </div>
             </div>
@@ -161,14 +227,24 @@ export default function Auth() {
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <input
-                  type="password"
+                  type={mostrarSenha ? 'text' : 'password'}
                   required
+                  autoComplete={isLogin ? 'current-password' : 'new-password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="input-field pl-10"
+                  className="input-field pl-10 pr-10"
                   placeholder="••••••••"
                   minLength={6}
                 />
+                <button
+                  type="button"
+                  onClick={() => setMostrarSenha((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={mostrarSenha ? 'Esconder senha' : 'Mostrar senha'}
+                  title={mostrarSenha ? 'Esconder senha' : 'Mostrar senha'}
+                >
+                  {mostrarSenha ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
             </div>
 
@@ -199,25 +275,33 @@ export default function Auth() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                setIsLogin(!isLogin);
-                setError('');
-                setMessage('');
-              }}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {isLogin ? (
-                <>Não tem conta? <span className="text-primary font-medium">Cadastre sua empresa</span></>
-              ) : (
-                <>Já tem conta? <span className="text-primary font-medium">Entre</span></>
-              )}
-            </button>
-          </div>
+          {!enderecoProprio && (
+            <div className="mt-6 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLogin(!isLogin);
+                  setError('');
+                  setMessage('');
+                }}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {isLogin ? (
+                  <>Não tem conta? <span className="text-primary font-medium">Cadastre sua empresa</span></>
+                ) : (
+                  <>Já tem conta? <span className="text-primary font-medium">Entre</span></>
+                )}
+              </button>
+            </div>
+          )}
+
+          {enderecoProprio && (
+            <p className="mt-6 text-center text-xs text-muted-foreground">
+              Esqueceu a senha? Peça para a direção redefinir.
+            </p>
+          )}
         </div>
-      </div>
+      </main>
     </div>
   );
 }

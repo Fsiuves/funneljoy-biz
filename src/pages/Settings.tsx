@@ -1,13 +1,19 @@
 import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
-import { Building2, Users, Bell, Palette, Shield, Database } from 'lucide-react';
+import { Building2, Users, Bell, Palette, Shield, Database, MessageSquareText, PhoneOff, BellRing } from 'lucide-react';
 import { CompanySettingsModal } from '@/components/settings/CompanySettingsModal';
 import { AppearanceSettingsModal } from '@/components/settings/AppearanceSettingsModal';
 import { TeamSettingsModal } from '@/components/settings/TeamSettingsModal';
 import { IntegrationSettingsModal } from '@/components/settings/IntegrationSettingsModal';
+import { QuickRepliesModal } from '@/components/settings/QuickRepliesModal';
+import { TelefonesEquipeModal } from '@/components/settings/TelefonesEquipeModal';
+import { AvisosModal } from '@/components/settings/AvisosModal';
+import { useModulosAtivos } from '@/hooks/useAtendimento';
+import { useMeuPapel } from '@/hooks/useEmpresa';
+import { useMarca } from '@/hooks/useMarca';
 
-type ModalType = 'company' | 'team' | 'appearance' | 'integrations' | null;
+type ModalType = 'company' | 'team' | 'appearance' | 'integrations' | 'quickreplies' | 'internos' | 'avisos' | null;
 
 const settingsSections = [
   {
@@ -58,10 +64,50 @@ const settingsSections = [
     items: ['WhatsApp', 'E-mail', 'Calendário', 'API'],
     enabled: true,
   },
+  {
+    id: 'quickreplies' as const,
+    icon: MessageSquareText,
+    title: 'Respostas prontas',
+    description: 'Textos do atendimento, chamados com /atalho',
+    items: ['Endereço', 'Valores', 'Horários', 'Por unidade'],
+    enabled: true,
+    modulo: 'atendimento',
+  },
+  {
+    id: 'internos' as const,
+    icon: PhoneOff,
+    title: 'Telefones da equipe',
+    description: 'Números dos sócios e da equipe: não viram paciente',
+    items: ['Sócios', 'Equipe', 'Recepção'],
+    enabled: true,
+    modulo: 'atendimento',
+  },
+  {
+    id: 'avisos' as const,
+    icon: BellRing,
+    title: 'Avisos no WhatsApp',
+    description: 'Paciente esperando, CRM fechado e o resumo do dia',
+    items: ['Espera', 'CRM fechado', 'Resumo do dia'],
+    enabled: true,
+    modulo: 'atendimento',
+  },
 ];
 
 export default function Settings() {
   const [openModal, setOpenModal] = useState<ModalType>(null);
+  const { data: modulos } = useModulosAtivos();
+  const { data: papel } = useMeuPapel();
+  const { marca } = useMarca();
+  // Empresa, equipe e aparência só a direção altera (o banco recusa o resto);
+  // para as outras funções ficam o número da unidade e as respostas prontas.
+  const DO_DIA_A_DIA = ['integrations', 'quickreplies'];
+  const secoes = settingsSections.filter(
+    (s) =>
+      (!('modulo' in s) || modulos?.has((s as { modulo: string }).modulo)) &&
+      (papel === 'admin' ||
+        (papel === 'manager' && (s.id === 'team' || s.id === 'internos' || s.id === 'avisos')) ||
+        (s.id !== null && DO_DIA_A_DIA.includes(s.id))),
+  );
 
   return (
     <MainLayout>
@@ -71,7 +117,7 @@ export default function Settings() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {settingsSections.map((section, index) => (
+        {secoes.map((section, index) => (
           <div
             key={section.title}
             onClick={() => section.enabled && section.id && setOpenModal(section.id)}
@@ -119,14 +165,16 @@ export default function Settings() {
         ))}
       </div>
 
-      {/* White Label Notice */}
-      <div className="mt-8 bg-primary/5 border border-primary/20 rounded-xl p-6 animate-fade-in">
-        <h3 className="font-semibold text-foreground mb-2">🏷️ White Label</h3>
-        <p className="text-muted-foreground">
-          Este CRM é totalmente personalizável. Você pode adicionar sua marca, cores e domínio próprio 
-          para oferecer uma experiência única aos seus clientes.
-        </p>
-      </div>
+      {/* White Label Notice: no endereço de uma empresa a marca já é dela, e o aviso vira propaganda para a equipe. */}
+      {!marca && (
+        <div className="mt-8 bg-primary/5 border border-primary/20 rounded-xl p-6 animate-fade-in">
+          <h3 className="font-semibold text-foreground mb-2">🏷️ White Label</h3>
+          <p className="text-muted-foreground">
+            Este CRM é totalmente personalizável. Você pode adicionar sua marca, cores e domínio próprio
+            para oferecer uma experiência única aos seus clientes.
+          </p>
+        </div>
+      )}
 
       {/* Modais */}
       <CompanySettingsModal 
@@ -140,6 +188,18 @@ export default function Settings() {
       <TeamSettingsModal 
         open={openModal === 'team'} 
         onOpenChange={(open) => setOpenModal(open ? 'team' : null)} 
+      />
+      <QuickRepliesModal
+        open={openModal === 'quickreplies'}
+        onOpenChange={(open) => setOpenModal(open ? 'quickreplies' : null)}
+      />
+      <TelefonesEquipeModal
+        open={openModal === 'internos'}
+        onOpenChange={(open) => setOpenModal(open ? 'internos' : null)}
+      />
+      <AvisosModal
+        open={openModal === 'avisos'}
+        onOpenChange={(open) => setOpenModal(open ? 'avisos' : null)}
       />
       <IntegrationSettingsModal
         open={openModal === 'integrations'}

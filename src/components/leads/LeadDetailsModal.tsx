@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useEtapas, useVocabulario } from '@/hooks/useEmpresa';
 import { X, Loader2, Phone, MessageCircle, Mail, FileText, StickyNote, Building2 } from 'lucide-react';
-import { Lead, LEAD_STEP_DEFS, LEAD_SOURCES, LEAD_STAGES, ActivityType } from '@/types/crm';
+import { Lead, LEAD_STEP_DEFS, LEAD_SOURCES, ActivityType } from '@/types/crm';
 import { Button } from '@/components/ui/button';
 import { useLeadSteps, useUpsertLeadStep } from '@/hooks/useLeadSteps';
 import { useUpdateLead } from '@/hooks/useLeads';
@@ -31,6 +32,8 @@ export function LeadDetailsModal({ isOpen, onClose, lead }: Props) {
   const upsertStep = useUpsertLeadStep();
   const updateLead = useUpdateLead();
   const createActivity = useCreateActivity();
+  const { rotulo } = useEtapas();
+  const v = useVocabulario();
   const activeLeadId = lead?.id;
   const activeLeadNotes = lead?.notes;
 
@@ -62,7 +65,7 @@ export function LeadDetailsModal({ isOpen, onClose, lead }: Props) {
   const currentLeadSteps = steps.filter((s) => s.leadId === lead.id);
   const stepByKey = new Map(currentLeadSteps.map((s) => [s.stepKey, s]));
   const sourceLabel = LEAD_SOURCES.find((s) => s.value === lead.source)?.label || lead.source;
-  const stageLabel = LEAD_STAGES.find((s) => s.value === lead.stage)?.label || lead.stage;
+  const stageLabel = rotulo(lead.stage);
 
   const saveNotes = () => {
     updateLead.mutate(
@@ -110,7 +113,7 @@ export function LeadDetailsModal({ isOpen, onClose, lead }: Props) {
       <div className="absolute inset-0 bg-foreground/20 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-card rounded-2xl shadow-lg w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto animate-scale-in">
         <div className="sticky top-0 bg-card flex items-center justify-between p-6 border-b border-border z-10">
-          <h2 className="text-xl font-semibold text-foreground">Detalhes do Lead</h2>
+          <h2 className="text-xl font-semibold text-foreground">Detalhes {v.do}</h2>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors">
             <X className="w-5 h-5 text-muted-foreground" />
           </button>

@@ -1,0 +1,10 @@
+{
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "colunaajustada.domintelligence.com" }],
+      "destination": "/marcas/colunaajustada.html"
+    },
+    { "source": "/(.*)", "destination": "/app.html" }
+  ]
+}

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { sairDaPresenca } from '@/lib/presenca';
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -80,46 +81,19 @@ export function useAuth() {
       };
     }
 
-    const baseSlug = (companyName || 'minha-empresa')
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '')
-      .slice(0, 40);
-
-    const slug = `${baseSlug || 'empresa'}-${Date.now().toString(36)}`;
-
-    const { data: tenant, error: tenantError } = await supabase
-      .from('tenants')
-      .insert({
-        name: companyName || 'Minha Empresa',
-        slug,
-      })
-      .select()
-      .single();
+    // Empresa, perfil e papel de admin numa chamada só, no servidor. O insert
+    // direto de perfil com tenant_id deixou de ser aceito: era por ele que
+    // qualquer cadastro virava admin de uma empresa alheia.
+    const { error: tenantError } = await supabase.rpc('create_my_tenant', {
+      _company_name: (companyName || 'Minha Empresa').trim(),
+    });
 
     if (tenantError) {
       console.error('Tenant creation error:', tenantError);
-      return { 
-        error: null, 
+      return {
+        error: null,
         needsEmailConfirmation: false as const,
-        needsOnboarding: true as const 
-      };
-    }
-
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: data.user.id,
-      email,
-      name: name || null,
-      tenant_id: tenant.id,
-    });
-
-    if (profileError) {
-      console.error('Profile creation error:', profileError);
-      return { 
-        error: null, 
-        needsEmailConfirmation: false as const,
-        needsOnboarding: true as const 
+        needsOnboarding: true as const
       };
     }
 
@@ -127,6 +101,7 @@ export function useAuth() {
   };
 
   const signOut = async () => {
+    await sairDaPresenca();
     const { error } = await supabase.auth.signOut();
     return { error };
   };

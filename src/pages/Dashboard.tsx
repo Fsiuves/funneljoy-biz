@@ -1,4 +1,5 @@
 import { MainLayout } from '@/components/layout/MainLayout';
+import { useEtapas, useVocabulario } from '@/hooks/useEmpresa';
 import { Header } from '@/components/layout/Header';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { FunnelChart } from '@/components/dashboard/FunnelChart';
@@ -9,6 +10,8 @@ import { useActivities } from '@/hooks/useActivities';
 import { Users, TrendingUp, Clock, DollarSign, UserPlus, Target, Loader2 } from 'lucide-react';
 
 export default function Dashboard() {
+  const { ehGanho, estaAberta } = useEtapas();
+  const v = useVocabulario();
   const { data: leads = [], isLoading: leadsLoading } = useLeads();
   const { data: activities = [], isLoading: activitiesLoading } = useActivities();
 
@@ -29,7 +32,7 @@ export default function Dashboard() {
   });
   const newLeadsThisMonth = thisMonth.length;
   
-  const wonLeads = leads.filter(l => l.stage === 'won');
+  const wonLeads = leads.filter(l => ehGanho(l.stage));
   const conversionRate = totalLeads > 0 ? Math.round((wonLeads.length / totalLeads) * 100) : 0;
   
   const totalRevenue = wonLeads.reduce((sum, l) => sum + (l.value || 0), 0);
@@ -62,7 +65,7 @@ export default function Dashboard() {
       {/* Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <MetricCard
-          title="Total de Leads"
+          title={`Total de ${v.leads}`}
           value={totalLeads}
           icon={Users}
         />
@@ -91,8 +94,8 @@ export default function Dashboard() {
         <FunnelChart leads={leads} />
         <div className="grid grid-cols-2 gap-6">
           <MetricCard
-            title="Leads Ativos"
-            value={leads.filter(l => !['won', 'lost'].includes(l.stage)).length}
+            title={`${v.Leads} ativos`}
+            value={leads.filter(l => estaAberta(l.stage)).length}
             icon={Clock}
             iconColor="text-primary"
           />
