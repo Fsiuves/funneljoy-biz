@@ -10,15 +10,18 @@ interface HeaderProps {
   onAddClick?: () => void;
   addButtonLabel?: string;
   action?: React.ReactNode;
+  /** Busca da própria tela: filtra ali mesmo, sem ir para a lista de pacientes. */
+  busca?: { valor: string; mudar: (valor: string) => void };
 }
 
-export function Header({ title, subtitle, onAddClick, addButtonLabel, action }: HeaderProps) {
+export function Header({ title, subtitle, onAddClick, addButtonLabel, action, busca }: HeaderProps) {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const v = useVocabulario();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    if (busca) return;
     const q = query.trim();
     navigate(q ? `/leads?q=${encodeURIComponent(q)}` : '/leads');
   };
@@ -39,8 +42,8 @@ export function Header({ title, subtitle, onAddClick, addButtonLabel, action }: 
           </button>
           <input
             type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={busca ? busca.valor : query}
+            onChange={(e) => (busca ? busca.mudar(e.target.value) : setQuery(e.target.value))}
             placeholder={`Buscar ${v.lead}...`}
             className="input-field pl-10 w-64"
           />

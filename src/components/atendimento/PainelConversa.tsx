@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/select';
 import {
   abrirMidia, avisoTelefoneMarcado, momentoMensagem, preencherResposta, useMarcarTelefoneEquipe,
-  useAtualizarConversa, useEnviarMensagem, useMensagens, useRespostasProntas,
+  useAtualizarConversa, useEnviarMensagem, useMensagens, useRespostasProntas, useRegrasAtendimento, assinarMensagem,
   type Conversa, type Mensagem, type Pessoa,
 } from '@/hooks/useAtendimento';
 
@@ -169,6 +169,7 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
   const [indice, setIndice] = useState(0);
   const campo = useRef<HTMLTextAreaElement>(null);
   const enviar = useEnviarMensagem();
+  const { data: regras } = useRegrasAtendimento();
   const { data: respostas = [] } = useRespostasProntas();
 
   // Rascunho some ao trocar de conversa.
@@ -208,7 +209,7 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
     const corpo = texto.trim();
     if (!corpo || enviar.isPending) return;
     enviar.mutate(
-      { conversationId: conversa.id, texto: corpo },
+      { conversationId: conversa.id, texto: regras?.assinar ? assinarMensagem(corpo, eu?.name) : corpo },
       {
         onSuccess: () => setTexto(''),
         onError: (e) => toast.error(e instanceof Error ? e.message : 'Falha ao enviar'),

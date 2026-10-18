@@ -5,6 +5,7 @@ import { useTenantCheck } from '@/hooks/useTenantCheck';
 import { useMarca } from '@/hooks/useMarca';
 import { useMenu } from '@/hooks/useEmpresa';
 import { trocarEmpresa } from '@/hooks/useAtendimento';
+import { definirEmpresaDaAba, empresaDaAba } from '@/lib/empresaDaAba';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2 } from 'lucide-react';
 
@@ -28,6 +29,23 @@ export function ProtectedRoute({ children, requireTenant = true }: ProtectedRout
   // em outra (a Dom, por exemplo) troca sozinho; quem não tem, sai com recado.
   const foraDaEmpresaDoEndereco =
     !!marca && isAuthenticated && !tenantLoading && hasTenant !== null && tenantId !== marca.tenantId;
+
+  // A aba fica na empresa em que abriu (src/lib/empresaDaAba.ts). No endereço de
+  // uma empresa, a marca já prendeu; no da Dom, prende a do perfil na entrada.
+  // O perfil também acompanha a empresa do endereço, sem recarregar: é por ele
+  // que as funções do servidor (envio de mensagem) sabem a empresa.
+  useEffect(() => {
+    if (!isAuthenticated || tenantLoading || !tenantId || !user) return;
+    if (!marca) {
+      if (!empresaDaAba()) definirEmpresaDaAba(tenantId);
+      return;
+    }
+    if (tenantId !== marca.tenantId) return;
+    (async () => {
+      const { data } = await supabase.from('profiles').select('tenant_id').eq('id', user.id).maybeSingle();
+      if (data && data.tenant_id !== marca.tenantId) await trocarEmpresa(marca.tenantId);
+    })();
+  }, [isAuthenticated, tenantLoading, tenantId, marca?.tenantId, user?.id]);
 
   useEffect(() => {
     if (!foraDaEmpresaDoEndereco || ajustando || !marca) return;

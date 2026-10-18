@@ -45,6 +45,12 @@ interface ConfigEmpresa {
     /** O que cada papel enxerga; a primeira é a tela inicial dele. */
     papeis?: Record<string, string[]>;
   };
+  funil?: {
+    /** false esconde a sequência de contato (0/7) da Dom nos cards. */
+    sequencia?: boolean;
+  };
+  /** PDF do guia do CRM, aberto pelo menu. */
+  guia_url?: string;
 }
 
 interface LinhaEtapa {
@@ -73,6 +79,12 @@ function useConfigEmpresa() {
   });
 }
 
+/** A configuração da empresa (tenants.config). */
+export function useConfig() {
+  const { data, isLoading } = useConfigEmpresa();
+  return { config: data?.config ?? ({} as ConfigEmpresa), carregando: isLoading };
+}
+
 export function useEtapas() {
   const { data, isLoading } = useConfigEmpresa();
   const etapas: Etapa[] = data?.etapas.length
@@ -84,6 +96,8 @@ export function useEtapas() {
     etapas,
     /** Enquanto carrega, o funil não desenha: evita mostrar as etapas erradas e trocar. */
     carregando: isLoading,
+    /** A empresa tem etapas próprias (crm.funil_etapas); sem elas, valem as padrão. */
+    personalizadas: !!data?.etapas.length,
     rotulo: (v: string) => porChave.get(v)?.label ?? v,
     cor: (v: string) => porChave.get(v)?.cor ?? 'hsl(var(--muted-foreground))',
     ehGanho: (v: string) => porChave.get(v)?.tipo === 'ganho',

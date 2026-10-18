@@ -2,12 +2,15 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { brokeredPreviewStorage } from './previewAuthStorage';
+import { comEmpresaDaAba } from '@/lib/empresaDaAba';
 
 const SUPABASE_URL = "https://ygxlplfdrpkxqszesmtn.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlneGxwbGZkcnBreHFzemVzbXRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMzAzNzAsImV4cCI6MjA5NDcwNjM3MH0.KegTqYTFxRoq7mpD7g5ymGESWEaqHiLGyWW2pkijN-8";
 
 export const supabase = createClient<{ crm: Database['public'] }>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   db: { schema: 'crm' },
+  // A empresa desta aba vai junto das consultas (src/lib/empresaDaAba.ts).
+  global: { fetch: (input, init) => fetch(input, comEmpresaDaAba(input, init)) },
   auth: {
     storage: brokeredPreviewStorage(),
     persistSession: true,

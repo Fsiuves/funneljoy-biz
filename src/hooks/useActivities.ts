@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { minhaEmpresaId } from '@/lib/minhaEmpresa';
 import { Activity, ActivityType } from '@/types/crm';
 import { toast } from '@/hooks/use-toast';
 
@@ -26,13 +27,7 @@ async function getUserTenantId(): Promise<string | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('tenant_id')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  return profile?.tenant_id || null;
+  return minhaEmpresaId(user.id);
 }
 
 export function useActivities(leadId?: string) {

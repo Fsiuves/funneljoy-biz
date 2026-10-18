@@ -397,3 +397,44 @@ export function preencherResposta(
     .replace(/\{unidade\}/gi, vars.unidade ?? '')
     .replace(/\{atendente\}/gi, primeiro(vars.atendente));
 }
+
+/**
+ * Regras do atendimento da empresa (crm.regras_atendimento, 23-ajustes-reuniao.sql):
+ * quem fica com a conversa quando outra atendente responde e se a mensagem do
+ * painel sai assinada com o nome de quem atende.
+ */
+export type TrocaDeTurno = 'primeiro' | 'ausente' | 'ultimo';
+export interface RegrasAtendimento {
+  troca_turno: TrocaDeTurno;
+  assinar: boolean;
+}
+
+export function useRegrasAtendimento() {
+  return useQuery({
+    queryKey: ['regras-atendimento'],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await crm.rpc('regras_atendimento');
+      if (error) throw error;
+      return (data ?? { troca_turno: 'primeiro', assinar: false }) as RegrasAtendimento;
+    },
+  });
+}
+
+export function useSalvarRegrasAtendimento() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (r: RegrasAtendimento) => {
+      const { data, error } = await crm.rpc('salvar_regras_atendimento', { _troca_turno: r.troca_turno, _assinar: r.assinar });
+      if (error) throw new Error(error.message);
+      if (!data?.success) throw new Error(data?.error === 'not_authorized' ? 'Só a direção e a gerente mudam as regras' : 'Não foi possível salvar');
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['regras-atendimento'] }),
+  });
+}
+
+/** A assinatura que vai na primeira linha, em negrito: "*Mariana:*". */
+export function assinarMensagem(texto: string, nome: string | null | undefined) {
+  const primeiro = (nome ?? '').trim().split(/\s+/)[0];
+  return primeiro ? `*${primeiro}:*\n${texto}` : texto;
+}

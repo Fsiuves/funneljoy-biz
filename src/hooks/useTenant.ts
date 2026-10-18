@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { minhaEmpresaId } from '@/lib/minhaEmpresa';
 import { useAuth } from './useAuth';
 
 interface Tenant {
@@ -46,11 +47,8 @@ export function useTenant() {
     if (!user) return;
 
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('tenant_id')
-        .eq('id', user.id)
-        .maybeSingle();
+      // A da aba, se a pessoa tem papel nela; senão a do perfil.
+      const profile = { tenant_id: await minhaEmpresaId(user.id) };
 
       if (profile?.tenant_id) {
         const { data: tenantData } = await supabase

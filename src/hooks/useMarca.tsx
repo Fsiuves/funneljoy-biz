@@ -3,6 +3,7 @@ import {
   aplicarMarcaDoEndereco, buscarMarca, hostDaMarca, marcaGuardada, temaVemDaEmpresa,
   type Marca,
 } from '@/lib/marca';
+import { definirEmpresaDaAba } from '@/lib/empresaDaAba';
 
 interface EstadoMarca {
   /** Empresa dona deste endereço. Nula no endereço padrão. */
@@ -34,6 +35,9 @@ export function MarcaProvider({ children }: { children: ReactNode }) {
   // Primeira visita sem cópia guardada: espera a marca para não abrir a tela da
   // clínica com a cara do DOM e trocar na frente da pessoa.
   if (marca === undefined) return <div className="min-h-screen bg-background" />;
+
+  // No endereço de uma empresa, a aba usa sempre ela, antes de qualquer consulta.
+  if (marca) definirEmpresaDaAba(marca.tenantId);
 
   return <Contexto.Provider value={{ marca }}>{children}</Contexto.Provider>;
 }

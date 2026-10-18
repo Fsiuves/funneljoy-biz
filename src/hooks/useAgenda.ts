@@ -65,6 +65,7 @@ const ERROS: Record<string, string> = {
   precisa_comparecer: 'Marque primeiro que o paciente compareceu',
   valor_invalido: 'Informe o valor do plano',
   data_invalida: 'Escolha o dia e a hora',
+  etapa_invalida: 'Essa etapa não existe no funil',
 };
 
 async function chamar(fn: string, args: Record<string, unknown>) {
@@ -95,8 +96,30 @@ export const useRegistrarPresenca = () =>
     chamar('registrar_presenca', { _avaliacao_id: id, _compareceu: compareceu }));
 
 export const useRegistrarFechamento = () =>
-  useRegistro(({ id, fechou, valor }: { id: string; fechou: boolean; valor?: number | null }) =>
-    chamar('registrar_fechamento', { _avaliacao_id: id, _fechou: fechou, _valor: valor ?? null }));
+  useRegistro(({ id, fechou, valor, plano, sessoes }: {
+    id: string; fechou: boolean; valor?: number | null; plano?: string | null; sessoes?: number | null;
+  }) =>
+    chamar('registrar_fechamento', {
+      _avaliacao_id: id, _fechou: fechou, _valor: valor ?? null, _plano: plano ?? null, _sessoes: sessoes ?? null,
+    }));
+
+/**
+ * Muda a etapa do paciente passando pela Agenda (crm.mudar_etapa): agendou pede
+ * dia e hora, compareceu e faltou registram a presença, fechou plano pede o
+ * valor. Assim funil, Agenda e Resultados contam a mesma coisa.
+ */
+export const useMudarEtapa = () =>
+  useRegistro(({ leadId, etapa, quando, valor, plano, sessoes }: {
+    leadId: string; etapa: string; quando?: Date | null; valor?: number | null; plano?: string | null; sessoes?: number | null;
+  }) =>
+    chamar('mudar_etapa', {
+      _lead_id: leadId, _etapa: etapa, _quando: quando ? quando.toISOString() : null,
+      _valor: valor ?? null, _plano: plano ?? null, _sessoes: sessoes ?? null,
+    }));
+
+/** Etapas que pedem algo antes de mudar. */
+export const ETAPA_PEDE_DATA = 'agendou';
+export const ETAPA_PEDE_VALOR = 'fechou_plano';
 
 export const reais = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -105,4 +128,33 @@ export function lerValor(texto: string): number | null {
   const limpo = texto.replace(/[^\d,.-]/g, '');
   const n = Number(limpo.includes(',') ? limpo.replace(/\./g, '').replace(',', '.') : limpo);
   return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+export interface PlanoFechado {
+  id: string;
+  lead_id: string;
+  unidade: string | null;
+  valor_plano: number | null;
+  plano: string | null;
+  sessoes: number | null;
+  fechamento_em: string | null;
+  fechamento_por: string | null;
+  leads?: { name: string | null; phone: string | null } | null;
+}
+
+/** Quem fechou plano, do mais recente para o mais antigo (aba Planos). */
+export function usePlanos() {
+  return useQuery({
+    queryKey: ['avaliacoes', 'planos'],
+    queryFn: async () => {
+      const { data, error } = await crm
+        .from('avaliacoes')
+        .select('id, lead_id, unidade, valor_plano, plano, sessoes, fechamento_em, fechamento_por, leads(name, phone)')
+        .eq('fechou_plano', true)
+        .neq('status', 'cancelada')
+        .order('fechamento_em', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as PlanoFechado[];
+    },
+  });
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useEtapas, useVocabulario } from '@/hooks/useEmpresa';
+import { useConfig, useEtapas, useVocabulario } from '@/hooks/useEmpresa';
 import { X, Loader2, Phone, MessageCircle, Mail, FileText, StickyNote, Building2 } from 'lucide-react';
 import { Lead, LEAD_STEP_DEFS, LEAD_SOURCES, ActivityType } from '@/types/crm';
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,7 @@ export function LeadDetailsModal({ isOpen, onClose, lead }: Props) {
   const updateLead = useUpdateLead();
   const createActivity = useCreateActivity();
   const { rotulo } = useEtapas();
+  const mostrarSequencia = useConfig().config.funil?.sequencia !== false;
   const v = useVocabulario();
   const activeLeadId = lead?.id;
   const activeLeadNotes = lead?.notes;
@@ -157,8 +158,8 @@ export function LeadDetailsModal({ isOpen, onClose, lead }: Props) {
             </div>
           </div>
 
-          {/* Checklist */}
-          <div>
+          {/* Checklist (a sequência de contato da Dom; a clínica desligou) */}
+          <div className={mostrarSequencia ? '' : 'hidden'}>
             <h3 className="text-sm font-semibold text-foreground mb-3">Sequência de contato</h3>
             <div className="space-y-3">
               {LEAD_STEP_DEFS.map((def) => {

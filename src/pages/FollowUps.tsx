@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { useModulosAtivos } from '@/hooks/useAtendimento';
 import { useVocabulario } from '@/hooks/useEmpresa';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
@@ -45,6 +48,18 @@ export default function FollowUps() {
   const v = useVocabulario();
   const createActivity = useCreateActivity();
   const leadsWithFollowUp = leads.filter(lead => lead.nextFollowUp);
+  const { data: modulos } = useModulosAtivos();
+  const temAtendimento = !!modulos?.has('atendimento');
+  const navigate = useNavigate();
+
+  // Com o atendimento pelo CRM, o retorno é pelo WhatsApp: abre a conversa.
+  const abrirConversa = async (lead: Lead) => {
+    const { data } = await (supabase as any)
+      .from('conversations').select('id').eq('lead_id', lead.id)
+      .order('last_message_at', { ascending: false }).limit(1).maybeSingle();
+    if (data?.id) navigate(`/atendimento?conversa=${data.id}`);
+    else toast({ title: 'Sem conversa no WhatsApp', description: `${lead.name} ainda não falou com a clínica pelo WhatsApp.` });
+  };
 
   const [activityModalOpen, setActivityModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | undefined>();
@@ -192,20 +207,32 @@ export default function FollowUps() {
       </div>
 
       <div className="flex gap-2">
-        <button 
-          className="flex-1 btn-primary text-sm py-2"
-          onClick={() => handleOpenActivityModal(lead, 'call')}
-        >
-          <Phone className="w-4 h-4" />
-          Ligar
-        </button>
-        <button 
-          className="flex-1 btn-secondary text-sm py-2"
-          onClick={() => handleOpenActivityModal(lead, 'email')}
-        >
-          <Mail className="w-4 h-4" />
-          E-mail
-        </button>
+        {temAtendimento ? (
+          <button
+            className="flex-1 btn-primary text-sm py-2"
+            onClick={() => abrirConversa(lead)}
+          >
+            <MessageCircle className="w-4 h-4" />
+            Abrir conversa
+          </button>
+        ) : (
+          <>
+            <button 
+              className="flex-1 btn-primary text-sm py-2"
+              onClick={() => handleOpenActivityModal(lead, 'call')}
+            >
+              <Phone className="w-4 h-4" />
+              Ligar
+            </button>
+            <button 
+              className="flex-1 btn-secondary text-sm py-2"
+              onClick={() => handleOpenActivityModal(lead, 'email')}
+            >
+              <Mail className="w-4 h-4" />
+              E-mail
+            </button>
+          </>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <button 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Lead, LEAD_SOURCES } from '@/types/crm';
+import { useConfig } from '@/hooks/useEmpresa';
 import { Phone, Mail, Building2, Calendar, CalendarPlus } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -14,6 +15,7 @@ interface LeadCardProps {
 const TOTAL_STEPS = 7;
 
 export function LeadCard({ lead, onClick }: LeadCardProps) {
+  const mostrarSequencia = useConfig().config.funil?.sequencia !== false;
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const { data: steps = [] } = useLeadSteps(lead.id);
 
@@ -84,8 +86,8 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
           </p>
         </div>
 
-        {/* Progresso da sequência de contato */}
-        <div className="mt-4">
+        {/* Progresso da sequência de contato (a Dom usa; a clínica desligou) */}
+        <div className={mostrarSequencia ? 'mt-4' : 'hidden'}>
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-xs text-muted-foreground">Sequência de contato</span>
             <span className="text-xs font-semibold text-foreground">{doneCount}/{TOTAL_STEPS}</span>

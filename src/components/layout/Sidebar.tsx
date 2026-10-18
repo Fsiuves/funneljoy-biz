@@ -16,6 +16,8 @@ import {
   CalendarCheck,
   TrendingUp,
   Monitor,
+  BadgeCheck,
+  BookOpen,
 } from 'lucide-react';
 import { TrocarSenhaDialog } from '@/components/auth/TrocarSenhaDialog';
 import { rotuloDeLogin } from '@/lib/usuario';
@@ -30,7 +32,8 @@ import {
 } from '@/hooks/useAtendimento';
 import { useMarca } from '@/hooks/useMarca';
 import { aplicarMarcaDaEmpresa } from '@/lib/marca';
-import { useMenu, useVocabulario } from '@/hooks/useEmpresa';
+import { definirEmpresaDaAba, empresaDaAba } from '@/lib/empresaDaAba';
+import { useConfig, useMenu, useVocabulario } from '@/hooks/useEmpresa';
 
 const menuItems = [
   // Atendimento e Agenda juntos no alto: só aparecem para quem tem o módulo.
@@ -41,6 +44,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
   { icon: Users, label: 'Leads', path: '/leads' },
   { icon: Kanban, label: 'Funil de Vendas', path: '/funnel' },
+  { icon: BadgeCheck, label: 'Planos', path: '/planos', modulo: 'atendimento' },
   { icon: Calendar, label: 'Follow-Up', path: '/followups' },
   { icon: BarChart3, label: 'Relatórios', path: '/reports' },
   { icon: Settings, label: 'Configurações', path: '/settings' },
@@ -57,11 +61,13 @@ export function Sidebar() {
   const { data: conversas = [] } = useConversas(temAtendimento);
   const esperando = conversas.filter((c) => c.status === 'aberta' && c.unread_count > 0).length;
   const { data: empresas = [] } = useMinhasEmpresas();
-  const empresaAtual = empresas.find((e) => e.atual);
+  // A da aba, quando ela tem uma; senão a do perfil.
+  const empresaAtual = empresas.find((e) => e.tenant_id === empresaDaAba()) ?? empresas.find((e) => e.atual);
   const { marca } = useMarca();
   const [trocarSenha, setTrocarSenha] = useState(false);
   const v = useVocabulario();
   const menu = useMenu();
+  const guia = useConfig().config.guia_url;
   const itens = menuItems
     .filter((item) => (!item.modulo || modulos?.has(item.modulo)) && menu.permitido(item.path))
     .sort((a, b) => Number(b.path === menu.primeiro) - Number(a.path === menu.primeiro));
@@ -73,6 +79,7 @@ export function Sidebar() {
       toast.error(erro);
       return;
     }
+    definirEmpresaDaAba(tenantId);
     // Recarrega tudo: cache, tema e módulos são da empresa.
     window.location.href = '/';
   };
@@ -145,6 +152,14 @@ export function Sidebar() {
             </Link>
           );
         })}
+
+        {/* O guia da empresa, em PDF, numa aba nova */}
+        {guia && (
+          <a href={guia} target="_blank" rel="noreferrer" className="sidebar-item">
+            <BookOpen className="w-5 h-5" />
+            <span>Guia do CRM</span>
+          </a>
+        )}
 
         {/* P.I.A. — só aparece se tenant tiver pia_ativo = true */}
         {(tenant as any)?.pia_ativo && menu.permitido('/pia') && (

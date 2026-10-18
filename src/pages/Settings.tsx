@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
-import { Building2, Users, Bell, Palette, Shield, Database, MessageSquareText, PhoneOff, BellRing } from 'lucide-react';
+import { Building2, Users, Bell, Palette, Shield, Database, MessageSquareText, PhoneOff, BellRing, Shuffle } from 'lucide-react';
 import { CompanySettingsModal } from '@/components/settings/CompanySettingsModal';
 import { AppearanceSettingsModal } from '@/components/settings/AppearanceSettingsModal';
 import { TeamSettingsModal } from '@/components/settings/TeamSettingsModal';
@@ -9,11 +9,12 @@ import { IntegrationSettingsModal } from '@/components/settings/IntegrationSetti
 import { QuickRepliesModal } from '@/components/settings/QuickRepliesModal';
 import { TelefonesEquipeModal } from '@/components/settings/TelefonesEquipeModal';
 import { AvisosModal } from '@/components/settings/AvisosModal';
+import { RegrasAtendimentoModal } from '@/components/settings/RegrasAtendimentoModal';
 import { useModulosAtivos } from '@/hooks/useAtendimento';
 import { useMeuPapel } from '@/hooks/useEmpresa';
 import { useMarca } from '@/hooks/useMarca';
 
-type ModalType = 'company' | 'team' | 'appearance' | 'integrations' | 'quickreplies' | 'internos' | 'avisos' | null;
+type ModalType = 'company' | 'team' | 'appearance' | 'integrations' | 'quickreplies' | 'internos' | 'avisos' | 'regras' | null;
 
 const settingsSections = [
   {
@@ -83,6 +84,15 @@ const settingsSections = [
     modulo: 'atendimento',
   },
   {
+    id: 'regras' as const,
+    icon: Shuffle,
+    title: 'Regras do atendimento',
+    description: 'Troca de turno e assinatura com o nome da atendente',
+    items: ['Troca de turno', 'Assinatura'],
+    enabled: true,
+    modulo: 'atendimento',
+  },
+  {
     id: 'avisos' as const,
     icon: BellRing,
     title: 'Avisos no WhatsApp',
@@ -105,7 +115,7 @@ export default function Settings() {
     (s) =>
       (!('modulo' in s) || modulos?.has((s as { modulo: string }).modulo)) &&
       (papel === 'admin' ||
-        (papel === 'manager' && (s.id === 'team' || s.id === 'internos' || s.id === 'avisos')) ||
+        (papel === 'manager' && (s.id === 'team' || s.id === 'internos' || s.id === 'avisos' || s.id === 'regras')) ||
         (s.id !== null && DO_DIA_A_DIA.includes(s.id))),
   );
 
@@ -196,6 +206,10 @@ export default function Settings() {
       <TelefonesEquipeModal
         open={openModal === 'internos'}
         onOpenChange={(open) => setOpenModal(open ? 'internos' : null)}
+      />
+      <RegrasAtendimentoModal
+        open={openModal === 'regras'}
+        onOpenChange={(open) => setOpenModal(open ? 'regras' : null)}
       />
       <AvisosModal
         open={openModal === 'avisos'}

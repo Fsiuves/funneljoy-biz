@@ -8,12 +8,14 @@ import { LeadDetailsModal } from '@/components/leads/LeadDetailsModal';
 import { useLeads, useCreateLead, useDeleteLead, useUpdateLead } from '@/hooks/useLeads';
 import { Lead, LeadSource, LEAD_SOURCES } from '@/types/crm';
 import { useEtapas, useVocabulario } from '@/hooks/useEmpresa';
-import { Phone, Mail, Building2, MoreHorizontal, Eye, Edit, Trash2, Loader2, Search } from 'lucide-react';
+import { Phone, Mail, Building2, MoreHorizontal, Eye, Edit, Trash2, Loader2, Search, ArrowRightLeft } from 'lucide-react';
+import { MudarEtapaDialog } from '@/components/leads/MudarEtapaDialog';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export default function Leads() {
-  const { rotulo, cor } = useEtapas();
+  const { rotulo, cor, personalizadas } = useEtapas();
+  const [mudandoEtapa, setMudandoEtapa] = useState<Lead | null>(null);
   const v = useVocabulario();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -237,6 +239,15 @@ export default function Leads() {
                               <Eye className="w-4 h-4" />
                               Ver detalhes
                             </button>
+                            {personalizadas && (
+                              <button
+                                onClick={() => { setOpenMenuId(null); setMudandoEtapa(lead); }}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                              >
+                                <ArrowRightLeft className="w-4 h-4" />
+                                Mudar etapa
+                              </button>
+                            )}
                             <button
                               onClick={() => handleEditClick(lead)}
                               className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
@@ -287,6 +298,10 @@ export default function Leads() {
             onSuccess: () => setEditLead(null),
           });
         }}
+      />
+      <MudarEtapaDialog
+        lead={mudandoEtapa ? { id: mudandoEtapa.id, name: mudandoEtapa.name, stage: mudandoEtapa.stage } : null}
+        onClose={() => setMudandoEtapa(null)}
       />
     </MainLayout>
   );

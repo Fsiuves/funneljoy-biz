@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { User } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { minhaEmpresaId } from '@/lib/minhaEmpresa';
 
 interface TenantCheckResult {
   hasTenant: boolean | null;
@@ -34,11 +34,14 @@ export function useTenantCheck(user: User | null, authLoading: boolean): TenantC
 
     const checkTenant = async () => {
       try {
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('tenant_id')
-          .eq('id', user.id)
-          .maybeSingle();
+        // A da aba, se a pessoa tem papel nela; senão a do perfil.
+        let profile: { tenant_id: string | null } | null = null;
+        let error: unknown = null;
+        try {
+          profile = { tenant_id: await minhaEmpresaId(user.id) };
+        } catch (e) {
+          error = e;
+        }
 
         if (!isMounted) return;
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { IntegrationSettingsModal } from '@/components/settings/IntegrationSettingsModal';
 import {
@@ -30,7 +31,9 @@ export default function Atendimento() {
   const [resolvidas, setResolvidas] = useState(false);
   const [unidade, setUnidade] = useState(TODAS);
   const [busca, setBusca] = useState('');
-  const [abertaId, setAbertaId] = useState<string | null>(null);
+  const [parametros] = useSearchParams();
+  // ?conversa= abre direto a conversa (vem do Follow-up e dos Planos).
+  const [abertaId, setAbertaId] = useState<string | null>(() => parametros.get('conversa'));
   const [conectar, setConectar] = useState(false);
 
   const eu = equipe.find((p) => p.id === user?.id);

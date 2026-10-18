@@ -164,6 +164,8 @@ function Linha({ a, mostrarUnidade }: { a: Avaliacao; mostrarUnidade: boolean })
   const [pedindoValor, setPedindoValor] = useState(false);
   const [corrigindo, setCorrigindo] = useState(false);
   const [valor, setValor] = useState('');
+  const [plano, setPlano] = useState('');
+  const [sessoes, setSessoes] = useState('');
   const ocupado = presenca.isPending || fechamento.isPending;
   const erro = (e: Error) => toast.error(e.message);
   const nome = a.leads?.name || formatarTelefone(a.leads?.phone ?? '');
@@ -179,7 +181,7 @@ function Linha({ a, mostrarUnidade }: { a: Avaliacao; mostrarUnidade: boolean })
       return;
     }
     fechamento.mutate(
-      { id: a.id, fechou, valor: v },
+      { id: a.id, fechou, valor: v, plano: fechou ? plano.trim() || null : null, sessoes: fechou && Number(sessoes) > 0 ? Math.round(Number(sessoes)) : null },
       {
         onSuccess: () => {
           setPedindoValor(false);
@@ -239,6 +241,21 @@ function Linha({ a, mostrarUnidade }: { a: Avaliacao; mostrarUnidade: boolean })
               onChange={(e) => setValor(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && fechar(true)}
               className="h-9 w-36"
+            />
+            <Input
+              placeholder="Plano (opcional)"
+              value={plano}
+              onChange={(e) => setPlano(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && fechar(true)}
+              className="h-9 w-44"
+            />
+            <Input
+              type="number"
+              min={1}
+              placeholder="Sessões"
+              value={sessoes}
+              onChange={(e) => setSessoes(e.target.value)}
+              className="h-9 w-24"
             />
             <Button size="sm" disabled={ocupado} onClick={() => fechar(true)}>Salvar</Button>
             <Button size="sm" variant="ghost" onClick={() => { setPedindoValor(false); setValor(''); }}>Cancelar</Button>

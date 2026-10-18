@@ -18,6 +18,7 @@ import Atendimento from "./pages/Atendimento";
 import Agenda from "./pages/Agenda";
 import Resultados from "./pages/Resultados";
 import Painel from "./pages/Painel";
+import Planos from "./pages/Planos";
 import { MarcaProvider } from "@/hooks/useMarca";
 
 const queryClient = new QueryClient();
@@ -41,6 +42,7 @@ const App = () => (
           <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
           <Route path="/resultados" element={<ProtectedRoute><Resultados /></ProtectedRoute>} />
           <Route path="/painel" element={<ProtectedRoute><Painel /></ProtectedRoute>} />
+          <Route path="/planos" element={<ProtectedRoute><Planos /></ProtectedRoute>} />
           <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
           <Route path="/funnel" element={<ProtectedRoute><Funnel /></ProtectedRoute>} />
           <Route path="/followups" element={<ProtectedRoute><FollowUps /></ProtectedRoute>} />
