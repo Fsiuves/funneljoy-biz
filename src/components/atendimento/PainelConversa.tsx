@@ -455,7 +455,10 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
               anexar(arq, arq.name || 'imagem.png', arq.type);
             }}
             rows={Math.min(6, Math.max(1, texto.split('\n').length))}
-            placeholder={anexo ? 'Legenda (opcional)' : 'Escreva a mensagem. Digite / para as respostas prontas.'}
+            placeholder={
+              !anexo ? 'Escreva a mensagem. Digite / para as respostas prontas.'
+                : anexo.mimetype.startsWith('audio/') ? 'Texto (opcional, vai depois do áudio)' : 'Legenda (opcional)'
+            }
             className="flex-1 resize-none rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
           {texto.trim() || anexo ? (
