@@ -81,6 +81,7 @@ const ERROS: Record<string, string> = {
   texto_longo: 'Mensagem longa demais.',
   dados_invalidos: 'Mensagem vazia.',
   midia_indisponivel: 'Não foi possível abrir esta mídia.',
+  arquivo_grande: 'Arquivo grande demais: até 10 MB.',
 };
 
 async function erroDaFuncao(error: any, data: any): Promise<string> {
@@ -223,12 +224,30 @@ export function useMensagens(conversa: Conversa | null) {
   });
 }
 
+/** Arquivo pronto para a wa-enviar: base64 sem o prefixo "data:". */
+export interface AnexoEnvio {
+  base64: string;
+  mimetype: string;
+  nome: string;
+}
+
+export const LIMITE_ANEXO = 10 * 1024 * 1024;
+
+export function lerAnexo(arquivo: Blob, mimetype: string, nome: string): Promise<AnexoEnvio> {
+  return new Promise((ok, falha) => {
+    const leitor = new FileReader();
+    leitor.onload = () => ok({ base64: String(leitor.result).split(',')[1] ?? '', mimetype, nome });
+    leitor.onerror = () => falha(new Error('Não foi possível ler o arquivo'));
+    leitor.readAsDataURL(arquivo);
+  });
+}
+
 export function useEnviarMensagem() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ conversationId, texto }: { conversationId: string; texto: string }) => {
+    mutationFn: async ({ conversationId, texto, anexo }: { conversationId: string; texto: string; anexo?: AnexoEnvio }) => {
       const { data, error } = await supabase.functions.invoke('wa-enviar', {
-        body: { conversation_id: conversationId, texto },
+        body: { conversation_id: conversationId, texto, anexo },
       });
       if (error || data?.error) throw new Error(await erroDaFuncao(error, data));
       return data;

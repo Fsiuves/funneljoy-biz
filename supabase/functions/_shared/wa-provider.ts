@@ -78,6 +78,35 @@ export async function enviarResposta(
   }
 }
 
+export interface Anexo {
+  tipo: 'image' | 'video' | 'audio' | 'document'
+  base64: string
+  mimetype: string
+  nome?: string | null
+  legenda?: string | null
+}
+
+// Tipo do WhatsApp pelo mimetype. Imagem e vídeo em formato que o WhatsApp não
+// mostra na conversa vão como documento. Áudio sai como mensagem de voz.
+export function tipoDoAnexo(mimetype: string): Anexo['tipo'] {
+  if (/^image\/(jpeg|png|webp)$/.test(mimetype)) return 'image'
+  if (/^video\/(mp4|3gpp)$/.test(mimetype)) return 'video'
+  if (mimetype.startsWith('audio/')) return 'audio'
+  return 'document'
+}
+
+// Foto, vídeo, áudio ou documento dentro da conversa. Mesma regra de janela do
+// texto na Cloud API.
+export async function enviarAnexo(cfg: WaConfig, telefone: string, anexo: Anexo): Promise<SendResult> {
+  const phone = normalizarTelefone(telefone)
+  try {
+    if (cfg.provedor === 'cloud') return await enviarCloudAnexo(cfg, phone, anexo)
+    return await enviarEvolutionAnexo(cfg, phone, anexo)
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 export async function baixarMidia(cfg: WaConfig, providerMessageId: string): Promise<Midia> {
   try {
     if (cfg.provedor === 'cloud') return await baixarCloudMidia(cfg, providerMessageId)
@@ -106,6 +135,35 @@ async function enviarEvolutionTexto(cfg: WaConfig, phone: string, texto: string)
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) return { ok: false, error: `Evolution ${res.status}: ${JSON.stringify(data)}` }
+  return { ok: true, providerId: data?.key?.id ?? data?.id ?? undefined }
+}
+
+// Evolution v2. Áudio: POST {url}/message/sendWhatsAppAudio/{instance} body
+// { number, audio } (a Evolution converte para mensagem de voz). O resto:
+// POST {url}/message/sendMedia/{instance} body { number, mediatype, mimetype,
+// caption, media, fileName }. Base64 puro, sem o prefixo "data:".
+async function enviarEvolutionAnexo(cfg: WaConfig, phone: string, anexo: Anexo): Promise<SendResult> {
+  const base = evolutionBase(cfg)
+  if (!base) return { ok: false, error: 'Config Evolution incompleta (url/instance/apikey).' }
+
+  const instancia = encodeURIComponent(cfg.evolution_instance!)
+  const [url, body] = anexo.tipo === 'audio'
+    ? [`${base}/message/sendWhatsAppAudio/${instancia}`, { number: phone, audio: anexo.base64 }]
+    : [`${base}/message/sendMedia/${instancia}`, {
+        number: phone,
+        mediatype: anexo.tipo,
+        mimetype: anexo.mimetype,
+        caption: anexo.legenda ?? '',
+        media: anexo.base64,
+        fileName: anexo.nome ?? 'arquivo',
+      }]
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: cfg.evolution_apikey! },
+    body: JSON.stringify(body),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) return { ok: false, error: `Evolution ${res.status}: ${JSON.stringify(data).slice(0, 300)}` }
   return { ok: true, providerId: data?.key?.id ?? data?.id ?? undefined }
 }
 
@@ -144,6 +202,40 @@ async function enviarCloudTexto(cfg: WaConfig, phone: string, mensagem: string):
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) return { ok: false, error: `Cloud (texto) ${res.status}: ${JSON.stringify(data)}` }
+  return { ok: true, providerId: data?.messages?.[0]?.id ?? undefined }
+}
+
+// 1) POST /{phone_number_id}/media sobe o arquivo e devolve o id  2) envia com
+// esse id. Na Cloud API áudio só em aac, mp4, mpeg, amr ou ogg (opus); o webm
+// gravado no Chrome volta com erro. O id gravado é o da mensagem, não o da
+// mídia, então a mídia enviada não reabre pela tela.
+async function enviarCloudAnexo(cfg: WaConfig, phone: string, anexo: Anexo): Promise<SendResult> {
+  if (!cfg.cloud_phone_number_id || !cfg.cloud_token)
+    return { ok: false, error: 'Config Cloud API incompleta (phone_number_id/token).' }
+
+  const bytes = Uint8Array.from(atob(anexo.base64), (c) => c.charCodeAt(0))
+  const form = new FormData()
+  form.append('messaging_product', 'whatsapp')
+  form.append('type', anexo.mimetype)
+  form.append('file', new Blob([bytes], { type: anexo.mimetype }), anexo.nome ?? 'arquivo')
+  const up = await fetch(`https://graph.facebook.com/v21.0/${cfg.cloud_phone_number_id}/media`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${cfg.cloud_token}` },
+    body: form,
+  })
+  const subido = await up.json().catch(() => ({}))
+  if (!up.ok || !subido?.id) return { ok: false, error: `Cloud (upload) ${up.status}: ${JSON.stringify(subido)}` }
+
+  const midia: Record<string, string> = { id: subido.id }
+  if (anexo.legenda && anexo.tipo !== 'audio') midia.caption = anexo.legenda
+  if (anexo.tipo === 'document') midia.filename = anexo.nome ?? 'arquivo'
+  const res = await fetch(`https://graph.facebook.com/v21.0/${cfg.cloud_phone_number_id}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.cloud_token}` },
+    body: JSON.stringify({ messaging_product: 'whatsapp', to: phone, type: anexo.tipo, [anexo.tipo]: midia }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) return { ok: false, error: `Cloud (${anexo.tipo}) ${res.status}: ${JSON.stringify(data)}` }
   return { ok: true, providerId: data?.messages?.[0]?.id ?? undefined }
 }
 

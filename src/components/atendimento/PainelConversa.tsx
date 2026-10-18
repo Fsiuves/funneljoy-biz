@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import {
   CheckCircle2, RotateCcw, Send, Zap, Loader2, UserPlus, ExternalLink,
   Image as ImageIcon, Mic, Video, FileText, MapPin, Contact, Smile, PhoneOff, CalendarPlus, CalendarCheck,
+  Paperclip, X, Square, Trash2,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -18,6 +19,7 @@ import {
 import {
   abrirMidia, avisoTelefoneMarcado, momentoMensagem, preencherResposta, useMarcarTelefoneEquipe,
   useAtualizarConversa, useEnviarMensagem, useMensagens, useRespostasProntas, useRegrasAtendimento, assinarMensagem,
+  lerAnexo, LIMITE_ANEXO,
   type Conversa, type Mensagem, type Pessoa,
 } from '@/hooks/useAtendimento';
 
@@ -163,19 +165,110 @@ function Balao({ m, autor }: { m: Mensagem; autor: string | null }) {
 
 // ---------------------------------------------------------------- caixa de texto
 
+interface AnexoNaCaixa {
+  arquivo: Blob;
+  nome: string;
+  mimetype: string;
+  previa: string;
+}
+
+const tamanho = (bytes: number) =>
+  bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+
+// O primeiro que o navegador grava. A Evolution converte para mensagem de voz.
+const FORMATOS_AUDIO = [
+  ['audio/ogg;codecs=opus', 'ogg'], ['audio/webm;codecs=opus', 'webm'], ['audio/mp4', 'm4a'],
+] as const;
+
+/** Gravação de áudio pelo microfone. Ao parar, entrega o arquivo; ao cancelar, nada. */
+function useGravador(aoTerminar: (arquivo: Blob, mimetype: string, extensao: string) => void) {
+  const [segundos, setSegundos] = useState<number | null>(null);
+  const gravador = useRef<MediaRecorder | null>(null);
+  const descartar = useRef(false);
+
+  useEffect(() => {
+    if (segundos === null) return;
+    const t = setInterval(() => setSegundos((s) => (s === null ? s : s + 1)), 1000);
+    return () => clearInterval(t);
+  }, [segundos === null]);
+
+  // Sair da conversa no meio da gravação descarta e solta o microfone.
+  useEffect(() => () => {
+    descartar.current = true;
+    gravador.current?.stop();
+  }, []);
+
+  const comecar = async () => {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      toast.error('Este navegador não grava áudio.');
+      return;
+    }
+    let fluxo: MediaStream;
+    try {
+      fluxo = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      toast.error('Libere o microfone para o CRM no navegador.');
+      return;
+    }
+    const [formato, extensao] = FORMATOS_AUDIO.find(([f]) => MediaRecorder.isTypeSupported(f)) ?? ['', 'webm'];
+    const r = new MediaRecorder(fluxo, formato ? { mimeType: formato } : undefined);
+    const pedacos: Blob[] = [];
+    r.ondataavailable = (e) => e.data.size && pedacos.push(e.data);
+    r.onstop = () => {
+      fluxo.getTracks().forEach((t) => t.stop());
+      gravador.current = null;
+      setSegundos(null);
+      if (descartar.current || !pedacos.length) return;
+      const mimetype = (r.mimeType || formato || 'audio/webm').split(';')[0];
+      aoTerminar(new Blob(pedacos, { type: mimetype }), mimetype, extensao);
+    };
+    descartar.current = false;
+    gravador.current = r;
+    r.start();
+    setSegundos(0);
+  };
+
+  const parar = (jogarFora: boolean) => {
+    descartar.current = jogarFora;
+    gravador.current?.stop();
+  };
+
+  return { segundos, comecar, parar };
+}
+
 function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undefined }) {
   const [texto, setTexto] = useState('');
   const [listaAberta, setListaAberta] = useState(false);
   const [indice, setIndice] = useState(0);
+  const [anexo, setAnexo] = useState<AnexoNaCaixa | null>(null);
+  const [enviando, setEnviando] = useState(false);
   const campo = useRef<HTMLTextAreaElement>(null);
+  const seletor = useRef<HTMLInputElement>(null);
   const enviar = useEnviarMensagem();
   const { data: regras } = useRegrasAtendimento();
   const { data: respostas = [] } = useRespostasProntas();
 
-  // Rascunho some ao trocar de conversa.
+  const anexar = (arquivo: Blob, nome: string, mimetype: string) => {
+    if (arquivo.size > LIMITE_ANEXO) {
+      toast.error(`Arquivo grande demais (${tamanho(arquivo.size)}): até 10 MB.`);
+      return;
+    }
+    setAnexo({ arquivo, nome, mimetype: mimetype || 'application/octet-stream', previa: URL.createObjectURL(arquivo) });
+    requestAnimationFrame(() => campo.current?.focus());
+  };
+  const gravacao = useGravador((arquivo, mimetype, extensao) => anexar(arquivo, `audio.${extensao}`, mimetype));
+
+  // A prévia é um endereço local do arquivo: solta quando o anexo sai.
+  useEffect(() => () => { if (anexo) URL.revokeObjectURL(anexo.previa); }, [anexo]);
+
+  // Rascunho, anexo e gravação somem ao trocar de conversa: o áudio não pode
+  // cair no paciente seguinte.
   useEffect(() => {
     setTexto('');
     setListaAberta(false);
+    setAnexo(null);
+    gravacao.parar(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversa.id]);
 
   const daUnidade = useMemo(
@@ -205,16 +298,28 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
     requestAnimationFrame(() => campo.current?.focus());
   };
 
-  const mandar = () => {
+  const mandar = async () => {
     const corpo = texto.trim();
-    if (!corpo || enviar.isPending) return;
-    enviar.mutate(
-      { conversationId: conversa.id, texto: regras?.assinar ? assinarMensagem(corpo, eu?.name) : corpo },
-      {
-        onSuccess: () => setTexto(''),
-        onError: (e) => toast.error(e instanceof Error ? e.message : 'Falha ao enviar'),
-      },
-    );
+    if ((!corpo && !anexo) || enviando) return;
+    const assinado = corpo && regras?.assinar ? assinarMensagem(corpo, eu?.name) : corpo;
+    setEnviando(true);
+    try {
+      if (!anexo) {
+        await enviar.mutateAsync({ conversationId: conversa.id, texto: assinado });
+      } else {
+        // Áudio não tem legenda: o texto vai logo depois, numa mensagem à parte.
+        const audio = anexo.mimetype.startsWith('audio/');
+        const dados = await lerAnexo(anexo.arquivo, anexo.mimetype, anexo.nome);
+        await enviar.mutateAsync({ conversationId: conversa.id, texto: audio ? '' : assinado, anexo: dados });
+        setAnexo(null);
+        if (audio && assinado) await enviar.mutateAsync({ conversationId: conversa.id, texto: assinado });
+      }
+      setTexto('');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Falha ao enviar');
+    } finally {
+      setEnviando(false);
+    }
   };
 
   const teclas = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -265,32 +370,107 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
         </p>
       )}
 
-      <div className="flex items-end gap-2">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="shrink-0 text-muted-foreground"
-          title="Respostas prontas"
-          onClick={() => setListaAberta((v) => !v)}
-        >
-          <Zap className="w-5 h-5" />
-        </Button>
-        <textarea
-          ref={campo}
-          value={texto}
-          onChange={(e) => setTexto(e.target.value)}
-          onKeyDown={teclas}
-          rows={Math.min(6, Math.max(1, texto.split('\n').length))}
-          placeholder="Escreva a mensagem. Digite / para as respostas prontas."
-          className="flex-1 resize-none rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-        />
-        <Button type="button" onClick={mandar} disabled={!texto.trim() || enviar.isPending} className="shrink-0 h-10">
-          {enviar.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-        </Button>
-      </div>
+      {anexo && (
+        <div className="mb-2 flex items-center gap-3 rounded-xl border border-border bg-muted/40 p-2">
+          {anexo.mimetype.startsWith('image/') ? (
+            <img src={anexo.previa} alt={anexo.nome} className="h-16 w-16 rounded-lg object-cover" />
+          ) : anexo.mimetype.startsWith('audio/') ? (
+            <audio controls src={anexo.previa} className="h-10 max-w-[260px]" />
+          ) : (
+            <div className="h-12 w-12 rounded-lg bg-card border flex items-center justify-center">
+              {anexo.mimetype.startsWith('video/') ? <Video className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            {!anexo.mimetype.startsWith('audio/') && <p className="text-sm font-medium truncate">{anexo.nome}</p>}
+            <p className="text-xs text-muted-foreground">
+              {tamanho(anexo.arquivo.size)} ·{' '}
+              {anexo.mimetype.startsWith('audio/') ? 'sai como mensagem de voz; o texto vai à parte' : 'o texto vai como legenda'}
+            </p>
+          </div>
+          <Button type="button" variant="ghost" size="icon" title="Tirar anexo" disabled={enviando} onClick={() => setAnexo(null)}>
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
+
+      <input
+        ref={seletor}
+        type="file"
+        className="hidden"
+        onChange={(e) => {
+          const arq = e.target.files?.[0];
+          if (arq) anexar(arq, arq.name, arq.type);
+          e.target.value = '';
+        }}
+      />
+
+      {gravacao.segundos !== null ? (
+        <div className="flex items-center gap-3 h-10">
+          <span className="w-2.5 h-2.5 rounded-full bg-destructive animate-pulse" />
+          <span className="flex-1 text-sm text-foreground tabular-nums">
+            Gravando {Math.floor(gravacao.segundos / 60)}:{String(gravacao.segundos % 60).padStart(2, '0')}
+          </span>
+          <Button type="button" variant="ghost" size="icon" title="Descartar" onClick={() => gravacao.parar(true)}>
+            <Trash2 className="w-4 h-4 text-destructive" />
+          </Button>
+          <Button type="button" onClick={() => gravacao.parar(false)} className="h-10">
+            <Square className="w-4 h-4 mr-1.5" />
+            Parar
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-end gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="shrink-0 text-muted-foreground"
+            title="Respostas prontas"
+            onClick={() => setListaAberta((v) => !v)}
+          >
+            <Zap className="w-5 h-5" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="shrink-0 text-muted-foreground"
+            title="Anexar foto, vídeo, áudio ou documento"
+            disabled={enviando}
+            onClick={() => seletor.current?.click()}
+          >
+            <Paperclip className="w-5 h-5" />
+          </Button>
+          <textarea
+            ref={campo}
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            onKeyDown={teclas}
+            onPaste={(e) => {
+              // Imagem copiada (print, foto) vira anexo; texto cola normal.
+              const arq = e.clipboardData.files?.[0];
+              if (!arq) return;
+              e.preventDefault();
+              anexar(arq, arq.name || 'imagem.png', arq.type);
+            }}
+            rows={Math.min(6, Math.max(1, texto.split('\n').length))}
+            placeholder={anexo ? 'Legenda (opcional)' : 'Escreva a mensagem. Digite / para as respostas prontas.'}
+            className="flex-1 resize-none rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          {texto.trim() || anexo ? (
+            <Button type="button" onClick={mandar} disabled={enviando} className="shrink-0 h-10" title="Enviar">
+              {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" onClick={gravacao.comecar} className="shrink-0 h-10" title="Gravar áudio">
+              <Mic className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
+      )}
       <p className="mt-1.5 text-[11px] text-muted-foreground">
-        Enter envia · Shift+Enter quebra linha · sai pelo WhatsApp da unidade {conversa.unidade}
+        Enter envia · Shift+Enter quebra linha · Ctrl+V cola imagem · sai pelo WhatsApp da unidade {conversa.unidade}
       </p>
     </div>
   );

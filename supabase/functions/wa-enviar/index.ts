@@ -1,4 +1,4 @@
-// Envio de texto pelo painel de atendimento.
+// Envio de texto, foto, vídeo, áudio e documento pelo painel de atendimento.
 //
 // Quem autoriza é o RLS: a conversa é lida com o token de quem clicou, então só
 // sai mensagem de conversa que a pessoa enxerga (empresa, módulo, papel e unidade).
@@ -9,7 +9,11 @@
 // trigger dele e atualiza a conversa pelo trigger do CRM.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
-import { configDaConta, enviarResposta } from "../_shared/wa-provider.ts";
+import { configDaConta, enviarAnexo, enviarResposta, tipoDoAnexo } from "../_shared/wa-provider.ts";
+
+// 10 MB de arquivo viram cerca de 13,4 MB em base64.
+const LIMITE_BASE64 = 14_000_000;
+const TIPO_MENSAGEM = { image: "imageMessage", video: "videoMessage", audio: "audioMessage", document: "documentMessage" };
 
 const resposta = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -35,10 +39,17 @@ Deno.serve(async (req) => {
     const { data: { user } } = await comoUsuario.auth.getUser();
     if (!user) return resposta({ error: "not_authenticated" }, 401);
 
-    const { conversation_id, texto } = await req.json();
+    // anexo: { base64, mimetype, nome }. Com anexo, o texto vira a legenda
+    // (áudio não tem legenda: a tela manda o texto à parte).
+    const { conversation_id, texto, anexo } = await req.json();
     const corpo = String(texto ?? "").trim();
-    if (!conversation_id || !corpo) return resposta({ error: "dados_invalidos" }, 400);
+    if (!conversation_id || (!corpo && !anexo)) return resposta({ error: "dados_invalidos" }, 400);
     if (corpo.length > 4096) return resposta({ error: "texto_longo" }, 400);
+    if (anexo && (typeof anexo.base64 !== "string" || !anexo.base64 || typeof anexo.mimetype !== "string")) {
+      return resposta({ error: "dados_invalidos" }, 400);
+    }
+    if (anexo && anexo.base64.length > LIMITE_BASE64) return resposta({ error: "arquivo_grande" }, 413);
+    const tipo = anexo ? tipoDoAnexo(anexo.mimetype) : null;
 
     const { data: conversa } = await comoUsuario
       .from("conversations")
@@ -57,7 +68,12 @@ Deno.serve(async (req) => {
       if (!aberta) return resposta({ error: "janela_fechada" }, 409);
     }
 
-    const envio = await enviarResposta(configDaConta(conta), conversa.phone, corpo);
+    const legenda = tipo === "audio" ? null : corpo || null;
+    const envio = tipo
+      ? await enviarAnexo(configDaConta(conta), conversa.phone, {
+          tipo, base64: anexo.base64, mimetype: anexo.mimetype, nome: anexo.nome ?? null, legenda,
+        })
+      : await enviarResposta(configDaConta(conta), conversa.phone, corpo);
     if (!envio.ok) {
       console.error("[wa-enviar] falha", envio.error);
       return resposta({ error: "falha_envio", detalhe: envio.error }, 502);
@@ -71,8 +87,9 @@ Deno.serve(async (req) => {
       phone_number: conversa.phone,
       instance_name: conta.instancia,
       evolution_message_id: idProvedor,
-      body: corpo,
-      message_type: "conversation",
+      // Como o Radar grava mídia: a legenda, ou "[mídia]" sem legenda.
+      body: tipo ? legenda ?? "[mídia]" : corpo,
+      message_type: tipo ? TIPO_MENSAGEM[tipo] : "conversation",
       is_from_me: true,
       timestamp_unix: Math.floor(Date.now() / 1000),
       sent_by: user.id,

@@ -7,7 +7,8 @@
 //    que estiver pendente em todas as empresas;
 //  - direção ou gerente, pela tela de Configurações: { acao: "teste" } manda uma
 //    mensagem de teste para os destinatários; { acao: "previa" } devolve o que
-//    sairia agora, sem enviar.
+//    sairia agora, sem enviar; { acao: "status" } diz se o número da Dom está
+//    conectado.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
@@ -19,12 +20,17 @@ const resposta = (body: unknown, status = 200) =>
 
 interface Destinatario { nome: string | null; telefone: string }
 
+// Mesma Evolution (EVOLUTION_URL e EVOLUTION_APIKEY) que a wa-enviar usa; muda
+// só a instância, a do número da Dom.
+const evolution = (caminho: string) =>
+  `${Deno.env.get("EVOLUTION_URL")!.replace(/\/$/, "")}/${caminho}/${encodeURIComponent(Deno.env.get("EVOLUTION_INSTANCIA")!)}`;
+
 async function enviar(numero: string, texto: string) {
-  const url = `${Deno.env.get("EVOLUTION_URL")}/message/sendText/${Deno.env.get("EVOLUTION_INSTANCIA")}`;
+  const url = evolution("message/sendText");
   try {
     const r = await fetch(url, {
       method: "POST",
-      headers: { apikey: Deno.env.get("EVOLUTION_KEY")!, "Content-Type": "application/json" },
+      headers: { apikey: Deno.env.get("EVOLUTION_APIKEY")!, "Content-Type": "application/json" },
       body: JSON.stringify({ number: numero, text: texto }),
     });
     if (r.ok) return { numero, ok: true };
@@ -83,6 +89,10 @@ Deno.serve(async (req) => {
       const { data, error } = await crm.rpc("avisos_pendentes", { _so_tenant: tenant });
       if (error) throw new Error(error.message);
       return resposta({ ok: true, avisos: (data ?? []).map((a: any) => ({ tipo: a.tipo, unidade: a.unidade, texto: a.texto })) });
+    }
+    if (acao === "status") {
+      const r = await fetch(evolution("instance/connectionState"), { headers: { apikey: Deno.env.get("EVOLUTION_APIKEY")! } });
+      return resposta({ ok: r.ok, status: r.status, estado: (await r.json().catch(() => ({})))?.instance?.state ?? null });
     }
     if (acao === "teste") {
       const { data: cfg } = await crm.rpc("avisos_config_de", { _tenant: tenant });
