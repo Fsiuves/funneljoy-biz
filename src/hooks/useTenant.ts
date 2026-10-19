@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { minhaEmpresaId } from '@/lib/minhaEmpresa';
 import { useAuth } from './useAuth';
@@ -31,39 +31,29 @@ interface TeamMemberWithRole extends Profile {
 
 export function useTenant() {
   const { user } = useAuth();
-  const [tenant, setTenant] = useState<Tenant | null>(null);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
+  const chave = ['tenant', user?.id];
 
-  useEffect(() => {
-    if (user) {
-      fetchTenant();
-    } else {
-      setTenant(null);
-      setLoading(false);
-    }
-  }, [user]);
-
-  const fetchTenant = async () => {
-    if (!user) return;
-
-    try {
+  // No cache: o menu se monta de novo a cada tela, e sem cache o logo e o nome
+  // da empresa sumiam ("CRM Dom Intelligence") até a consulta voltar.
+  const consulta = useQuery({
+    queryKey: chave,
+    enabled: !!user,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
       // A da aba, se a pessoa tem papel nela; senão a do perfil.
-      const profile = { tenant_id: await minhaEmpresaId(user.id) };
-
-      if (profile?.tenant_id) {
-        const { data: tenantData } = await supabase
-          .from('tenants')
-          .select('*')
-          .eq('id', profile.tenant_id)
-          .maybeSingle();
-
-        setTenant(tenantData as Tenant);
-      }
-    } catch (error) {
-      console.error('Error fetching tenant:', error);
-    } finally {
-      setLoading(false);
-    }
+      const tenantId = await minhaEmpresaId(user!.id);
+      if (!tenantId) return null;
+      const { data, error } = await supabase.from('tenants').select('*').eq('id', tenantId).maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as Tenant | null;
+    },
+  });
+  const tenant = consulta.data ?? null;
+  const loading = !!user && consulta.isLoading;
+  const setTenant = (novo: Tenant) => qc.setQueryData(chave, novo);
+  const fetchTenant = async () => {
+    await consulta.refetch();
   };
 
   const updateTenant = async (updates: Partial<Tenant>) => {

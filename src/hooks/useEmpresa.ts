@@ -71,6 +71,11 @@ function useConfigEmpresa() {
         crm.from('tenants').select('config').maybeSingle(),
         crm.from('funil_etapas').select('chave, rotulo, cor, tipo').order('ordem'),
       ]);
+      // Falha não é "empresa sem configuração": sem o throw, a clínica ficava
+      // 5 minutos com a cara e as etapas da Dom. Com ele, a consulta tenta de
+      // novo e a tela segue com o que já tinha.
+      if (empresa.error) throw empresa.error;
+      if (etapas.error) throw etapas.error;
       return {
         config: (empresa.data?.config ?? {}) as ConfigEmpresa,
         etapas: (etapas.data ?? []) as LinhaEtapa[],
@@ -113,7 +118,9 @@ export function useMeuPapel() {
     enabled: !!user,
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      const { data } = await crm.from('user_roles').select('role').eq('user_id', user!.id).maybeSingle();
+      const { data, error } = await crm.from('user_roles').select('role').eq('user_id', user!.id).maybeSingle();
+      // Sem papel o menu mostra tudo: falha tenta de novo, não vira "sem papel".
+      if (error) throw error;
       return (data?.role ?? null) as string | null;
     },
   });

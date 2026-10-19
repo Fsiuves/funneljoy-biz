@@ -1,37 +1,50 @@
-import { useEffect, useState, useRef } from 'react';
+import { useSyncExternalStore } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { sairDaPresenca } from '@/lib/presenca';
 
+// Quem está logado, uma vez só para o app inteiro. Antes cada tela e cada hook
+// tinha o seu estado e começava sem usuário até o getSession responder: nesse
+// intervalo as consultas da empresa ficavam desligadas e a tela da clínica caía
+// no padrão da Dom ("Funil de Vendas", "Detalhes do lead", a sequência de
+// contato), e voltava em seguida. Com várias abas abertas o intervalo chegava a
+// segundos (vídeo da recepção de 19/10).
+interface EstadoAuth {
+  session: Session | null;
+  user: User | null;
+  loading: boolean;
+}
+
+let estado: EstadoAuth = { session: null, user: null, loading: true };
+const ouvintes = new Set<() => void>();
+let iniciado = false;
+
+function guardar(session: Session | null) {
+  // Renovar o token troca o objeto da sessão, mas não a pessoa: mantém o mesmo
+  // user para não refazer tudo o que depende dele a cada renovação.
+  const mesmo = estado.user && session?.user && JSON.stringify(estado.user) === JSON.stringify(session.user);
+  estado = { session, user: mesmo ? estado.user : session?.user ?? null, loading: false };
+  ouvintes.forEach((avisar) => avisar());
+}
+
+function iniciar() {
+  if (iniciado) return;
+  iniciado = true;
+  // Primeiro a sessão guardada; os eventos só valem depois dela.
+  supabase.auth.getSession().then(({ data: { session } }) => guardar(session));
+  supabase.auth.onAuthStateChange((_event, session) => {
+    if (!estado.loading) guardar(session);
+  });
+}
+
+function assinar(avisar: () => void) {
+  iniciar();
+  ouvintes.add(avisar);
+  return () => ouvintes.delete(avisar);
+}
+
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-  const initializedRef = useRef(false);
-
-  useEffect(() => {
-    // First restore session from storage
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-      initializedRef.current = true;
-    });
-
-    // Then listen for subsequent auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        // Only update after initial session has been restored
-        if (initializedRef.current) {
-          setSession(session);
-          setUser(session?.user ?? null);
-          setLoading(false);
-        }
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const { user, session, loading } = useSyncExternalStore(assinar, () => estado);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });

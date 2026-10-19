@@ -102,7 +102,9 @@ export function useModulosAtivos() {
     enabled: !!user,
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      const { data } = await crm.from('tenant_modules').select('module_key, ativo, expira_em');
+      const { data, error } = await crm.from('tenant_modules').select('module_key, ativo, expira_em');
+      // Falha não é "sem módulos": viraria "Atendimento não contratado" e menu sem itens.
+      if (error) throw error;
       const agora = Date.now();
       return new Set<string>(
         (data ?? [])

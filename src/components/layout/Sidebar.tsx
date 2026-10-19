@@ -89,7 +89,9 @@ export function Sidebar() {
     navigate('/auth');
   };
 
-  const logoUrl = tenant?.system_logo_url || tenant?.logo_url;
+  // Enquanto a empresa carrega, vale a marca do endereço (já conhecida antes do
+  // login): sem ela o menu da clínica abria com "CRM Dom Intelligence".
+  const logoUrl = tenant?.system_logo_url || tenant?.logo_url || marca?.logoUrl;
 
   // Depois do login manda a cara da empresa de quem entrou.
   useEffect(() => {
@@ -103,12 +105,12 @@ export function Sidebar() {
         {logoUrl ? (
           <img
             src={logoUrl}
-            alt={tenant?.name || 'Logo'}
+            alt={tenant?.name || marca?.nome || 'Logo'}
             className="h-14 w-auto max-w-[200px] object-contain"
           />
         ) : (
           <h1 className="text-xl font-bold text-sidebar-foreground">
-            <span className="text-sidebar-primary">CRM</span> {tenant?.name || 'Dom Intelligence'}
+            <span className="text-sidebar-primary">CRM</span> {tenant?.name || marca?.nome || 'Dom Intelligence'}
           </h1>
         )}
       </div>

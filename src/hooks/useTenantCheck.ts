@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { User } from '@supabase/supabase-js';
 import { minhaEmpresaId } from '@/lib/minhaEmpresa';
 
@@ -8,73 +8,26 @@ interface TenantCheckResult {
   tenantId: string | null;
 }
 
+/**
+ * A empresa em uso (a da aba, se a pessoa tem papel nela; senão a do perfil).
+ *
+ * Fica no cache: cada tela tem o seu ProtectedRoute, e sem cache toda troca de
+ * tela perguntava de novo e mostrava a tela de carregando. Falha de rede não é
+ * "sem empresa": antes ela mandava para o cadastro de empresa, recarregava a
+ * página ou tirava a pessoa do sistema. Agora tenta de novo e segue carregando.
+ */
 export function useTenantCheck(user: User | null, authLoading: boolean): TenantCheckResult {
-  const [hasTenant, setHasTenant] = useState<boolean | null>(null);
-  const [tenantId, setTenantId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const consulta = useQuery({
+    queryKey: ['empresa-em-uso', user?.id],
+    enabled: !!user && !authLoading,
+    staleTime: 5 * 60_000,
+    retry: true,
+    retryDelay: (tentativa) => Math.min(1000 * 2 ** tentativa, 10_000),
+    queryFn: () => minhaEmpresaId(user!.id),
+  });
 
-  useEffect(() => {
-    let isMounted = true;
-
-    if (authLoading) {
-      setLoading(true);
-      return () => {
-        isMounted = false;
-      };
-    }
-
-    if (!user) {
-      setHasTenant(null);
-      setTenantId(null);
-      setLoading(false);
-      return () => {
-        isMounted = false;
-      };
-    }
-
-    const checkTenant = async () => {
-      try {
-        // A da aba, se a pessoa tem papel nela; senão a do perfil.
-        let profile: { tenant_id: string | null } | null = null;
-        let error: unknown = null;
-        try {
-          profile = { tenant_id: await minhaEmpresaId(user.id) };
-        } catch (e) {
-          error = e;
-        }
-
-        if (!isMounted) return;
-
-        if (error) {
-          console.error('Error checking tenant:', error);
-          setHasTenant(false);
-          setTenantId(null);
-        } else if (profile?.tenant_id) {
-          setHasTenant(true);
-          setTenantId(profile.tenant_id);
-        } else {
-          setHasTenant(false);
-          setTenantId(null);
-        }
-      } catch (error) {
-        if (!isMounted) return;
-        console.error('Error checking tenant:', error);
-        setHasTenant(false);
-        setTenantId(null);
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    setLoading(true);
-    void checkTenant();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [user, authLoading]);
-
-  return { hasTenant, loading, tenantId };
+  if (authLoading) return { hasTenant: null, loading: true, tenantId: null };
+  if (!user) return { hasTenant: null, loading: false, tenantId: null };
+  if (consulta.data === undefined) return { hasTenant: null, loading: true, tenantId: null };
+  return { hasTenant: !!consulta.data, loading: false, tenantId: consulta.data };
 }

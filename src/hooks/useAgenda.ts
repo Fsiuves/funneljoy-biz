@@ -45,7 +45,7 @@ export function useAvaliacaoAberta(leadId: string | null | undefined) {
     queryKey: ['avaliacao-aberta', leadId],
     enabled: !!leadId,
     queryFn: async () => {
-      const { data } = await crm
+      const { data, error } = await crm
         .from('avaliacoes')
         .select('id, marcada_para')
         .eq('lead_id', leadId)
@@ -53,6 +53,7 @@ export function useAvaliacaoAberta(leadId: string | null | undefined) {
         .order('marcada_para', { ascending: false })
         .limit(1)
         .maybeSingle();
+      if (error) throw error;
       return (data ?? null) as { id: string; marcada_para: string } | null;
     },
   });
