@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useVocabulario } from '@/hooks/useEmpresa';
+import { useConfig, useVocabulario } from '@/hooks/useEmpresa';
 import { X, Loader2 } from 'lucide-react';
 import { Lead, LeadSource, LEAD_SOURCES } from '@/types/crm';
 import { Button } from '@/components/ui/button';
@@ -20,11 +20,16 @@ interface EditLeadModalProps {
   isLoading?: boolean;
 }
 
+// Celular com o 55 na frente (o que vem do WhatsApp) mantém o 55: cortar em 11
+// dígitos estragava o número ao editar o paciente.
 const formatPhone = (v: string) => {
-  const n = v.replace(/\D/g, '').slice(0, 11);
-  if (n.length <= 2) return n;
-  if (n.length <= 7) return `(${n.slice(0, 2)}) ${n.slice(2)}`;
-  return `(${n.slice(0, 2)}) ${n.slice(2, 7)}-${n.slice(7)}`;
+  let n = v.replace(/\D/g, '');
+  const ddi = n.length > 11 && n.startsWith('55') ? '+55 ' : '';
+  if (ddi) n = n.slice(2);
+  n = n.slice(0, 11);
+  if (n.length <= 2) return ddi + n;
+  if (n.length <= 7) return `${ddi}(${n.slice(0, 2)}) ${n.slice(2)}`;
+  return `${ddi}(${n.slice(0, 2)}) ${n.slice(2, 7)}-${n.slice(7)}`;
 };
 const formatCurrency = (v: string) => {
   const n = v.replace(/\D/g, '');
@@ -40,6 +45,10 @@ const currencyFromNumber = (n?: number) =>
 
 export function EditLeadModal({ isOpen, onClose, lead, onSave, isLoading }: EditLeadModalProps) {
   const v = useVocabulario();
+  // Escondidos na clínica; o que já estava gravado continua salvo ao editar.
+  const campos = useConfig().config.formulario;
+  const comEmpresa = campos?.empresa !== false;
+  const comValor = campos?.valor !== false;
   const [form, setForm] = useState({
     name: '', email: '', phone: '', company: '', source: 'website' as LeadSource, value: '',
   });
@@ -89,27 +98,31 @@ export function EditLeadModal({ isOpen, onClose, lead, onSave, isLoading }: Edit
               <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field" disabled={isLoading} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">E-mail</label>
+              <label className="block text-sm font-medium text-foreground mb-2">E-mail <span className="font-normal text-muted-foreground">(opcional)</span></label>
               <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input-field" disabled={isLoading} />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">Telefone *</label>
               <input type="tel" required value={form.phone} onChange={(e) => setForm({ ...form, phone: formatPhone(e.target.value) })} className="input-field" disabled={isLoading} />
             </div>
+            {comEmpresa && (
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">Empresa</label>
               <input type="text" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} className="input-field" disabled={isLoading} />
             </div>
-            <div>
+            )}
+            <div className={comEmpresa ? '' : 'col-span-2'}>
               <label className="block text-sm font-medium text-foreground mb-2">Origem *</label>
               <select required value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value as LeadSource })} className="input-field" disabled={isLoading}>
                 {LEAD_SOURCES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
             </div>
+            {comValor && (
             <div className="col-span-2">
               <label className="block text-sm font-medium text-foreground mb-2">Valor Estimado (R$)</label>
               <input type="text" inputMode="numeric" value={form.value} onChange={(e) => setForm({ ...form, value: formatCurrency(e.target.value) })} className="input-field" placeholder="0,00" disabled={isLoading} />
             </div>
+            )}
           </div>
           <div className="flex gap-3 pt-4">
             <Button type="button" variant="outline" onClick={onClose} className="flex-1" disabled={isLoading}>Cancelar</Button>

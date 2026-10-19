@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useVocabulario } from '@/hooks/useEmpresa';
+import { useConfig, useVocabulario } from '@/hooks/useEmpresa';
 import { X, Loader2, AlertTriangle } from 'lucide-react';
 import { Lead, LeadSource, LEAD_SOURCES } from '@/types/crm';
 import { Button } from '@/components/ui/button';
@@ -19,12 +19,24 @@ interface AddLeadModalProps {
   existingLeads?: Lead[];
 }
 
-// Format phone as (00) 00000-0000
+// Format phone as (00) 00000-0000. Número colado do WhatsApp (+55 ...) mantém o
+// 55: cortar em 11 dígitos gravava um número errado.
 const formatPhone = (value: string): string => {
-  const numbers = value.replace(/\D/g, '').slice(0, 11);
-  if (numbers.length <= 2) return numbers;
-  if (numbers.length <= 7) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
-  return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
+  let numbers = value.replace(/\D/g, '');
+  const ddi = numbers.length > 11 && numbers.startsWith('55') ? '+55 ' : '';
+  if (ddi) numbers = numbers.slice(2);
+  numbers = numbers.slice(0, 11);
+  if (numbers.length <= 2) return ddi + numbers;
+  if (numbers.length <= 7) return `${ddi}(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+  return `${ddi}(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
+};
+
+// Mesma chave do banco (crm.phone_key): 55 + DDD + 8 últimos dígitos. Assim o
+// aviso de repetido pega o paciente do WhatsApp (5511...) digitado sem o 55.
+const chaveTelefone = (value: string): string => {
+  let d = value.replace(/\D/g, '');
+  if (d.length === 10 || d.length === 11) d = '55' + d;
+  return d.length >= 12 && d.startsWith('55') ? '55' + d.slice(2, 4) + d.slice(-8) : d;
 };
 
 // Format value as Brazilian Real (1.234,56)
@@ -53,6 +65,10 @@ const parseCurrency = (formatted: string): number => {
 
 export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads = [] }: AddLeadModalProps) {
   const v = useVocabulario();
+  // Empresa e valor estimado são do cadastro de vendas: a clínica não usa.
+  const campos = useConfig().config.formulario;
+  const comEmpresa = campos?.empresa !== false;
+  const comValor = campos?.valor !== false;
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -68,7 +84,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
 
   const phoneDuplicate = useMemo(
     () => (phoneDigits.length >= 8
-      ? existingLeads.find((l) => l.phone.replace(/\D/g, '') === phoneDigits)
+      ? existingLeads.find((l) => chaveTelefone(l.phone) === chaveTelefone(phoneDigits))
       : undefined),
     [existingLeads, phoneDigits]
   );
@@ -159,7 +175,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
 
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
-                E-mail
+                E-mail <span className="font-normal text-muted-foreground">(opcional)</span>
               </label>
               <input
                 type="email"
@@ -186,6 +202,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
               />
             </div>
 
+            {comEmpresa && (
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
                 Empresa
@@ -199,8 +216,9 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
                 disabled={isLoading}
               />
             </div>
+            )}
 
-            <div>
+            <div className={comEmpresa ? '' : 'col-span-2'}>
               <label className="block text-sm font-medium text-foreground mb-2">
                 Origem *
               </label>
@@ -219,6 +237,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
               </select>
             </div>
 
+            {comValor && (
             <div className="col-span-2">
               <label className="block text-sm font-medium text-foreground mb-2">
                 Valor Estimado (R$)
@@ -233,6 +252,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
                 disabled={isLoading}
               />
             </div>
+            )}
           </div>
 
           {/* Duplicate detection */}

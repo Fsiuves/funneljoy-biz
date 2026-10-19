@@ -49,6 +49,11 @@ interface ConfigEmpresa {
     /** false esconde a sequência de contato (0/7) da Dom nos cards. */
     sequencia?: boolean;
   };
+  /** Campos do cadastro de vendas que a empresa não usa: false esconde. */
+  formulario?: {
+    empresa?: boolean;
+    valor?: boolean;
+  };
   /** PDF do guia do CRM, aberto pelo menu. */
   guia_url?: string;
 }
