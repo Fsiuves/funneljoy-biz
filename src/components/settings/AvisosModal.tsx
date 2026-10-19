@@ -141,8 +141,8 @@ export function AvisosModal({ open, onOpenChange }: AvisosModalProps) {
             Avisos no WhatsApp
           </DialogTitle>
           <DialogDescription>
-            Para quem cuida da clínica saber na hora quando algo sai do esperado. Os avisos saem pelo WhatsApp da
-            Dom Intelligence.
+            Para quem cuida da clínica saber na hora quando algo sai do esperado. Os avisos saem por um número à
+            parte, não pelo WhatsApp das unidades.
           </DialogDescription>
         </DialogHeader>
 

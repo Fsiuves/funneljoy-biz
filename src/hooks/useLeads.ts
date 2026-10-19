@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { minhaEmpresaId } from '@/lib/minhaEmpresa';
 import { Lead, LeadSource, LeadStage } from '@/types/crm';
 import { toast } from '@/hooks/use-toast';
+import { useVocabulario } from '@/hooks/useEmpresa';
 
 interface LeadRow {
   id: string;
@@ -90,6 +91,7 @@ export function useLeads() {
 
 export function useCreateLead() {
   const queryClient = useQueryClient();
+  const v = useVocabulario();
   
   return useMutation({
     mutationFn: async (lead: {
@@ -126,16 +128,17 @@ export function useCreateLead() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
-      toast({ title: 'Lead criado com sucesso!' });
+      toast({ title: `${v.Lead} ${v.feminino ? 'criada' : 'criado'} com sucesso!` });
     },
     onError: (error: Error) => {
-      toast({ title: 'Erro ao criar lead', description: error.message, variant: 'destructive' });
+      toast({ title: `Erro ao criar ${v.lead}`, description: error.message, variant: 'destructive' });
     },
   });
 }
 
 export function useUpdateLeadStage() {
   const queryClient = useQueryClient();
+  const v = useVocabulario();
   
   return useMutation({
     mutationFn: async ({ id, stage }: { id: string; stage: LeadStage }) => {
@@ -150,13 +153,14 @@ export function useUpdateLeadStage() {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
     },
     onError: (error: Error) => {
-      toast({ title: 'Erro ao atualizar lead', description: error.message, variant: 'destructive' });
+      toast({ title: `Erro ao atualizar ${v.lead}`, description: error.message, variant: 'destructive' });
     },
   });
 }
 
 export function useUpdateLead() {
   const queryClient = useQueryClient();
+  const v = useVocabulario();
   
   return useMutation({
     mutationFn: async ({
@@ -206,13 +210,14 @@ export function useUpdateLead() {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
     },
     onError: (error: Error) => {
-      toast({ title: 'Erro ao atualizar lead', description: error.message, variant: 'destructive' });
+      toast({ title: `Erro ao atualizar ${v.lead}`, description: error.message, variant: 'destructive' });
     },
   });
 }
 
 export function useDeleteLead() {
   const queryClient = useQueryClient();
+  const v = useVocabulario();
   
   return useMutation({
     mutationFn: async (id: string) => {
@@ -225,10 +230,10 @@ export function useDeleteLead() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
-      toast({ title: 'Lead excluído com sucesso!' });
+      toast({ title: `${v.Lead} ${v.feminino ? 'excluída' : 'excluído'} com sucesso!` });
     },
     onError: (error: Error) => {
-      toast({ title: 'Erro ao excluir lead', description: error.message, variant: 'destructive' });
+      toast({ title: `Erro ao excluir ${v.lead}`, description: error.message, variant: 'destructive' });
     },
   });
 }

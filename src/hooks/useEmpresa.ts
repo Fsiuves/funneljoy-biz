@@ -66,6 +66,9 @@ function useConfigEmpresa() {
     queryKey: ['config-empresa', user?.id],
     enabled: !!user,
     staleTime: 5 * 60_000,
+    // Até responder: falha não pode deixar a tela com o padrão da Dom.
+    retry: true,
+    retryDelay: (tentativa: number) => Math.min(1000 * 2 ** tentativa, 10_000),
     queryFn: async () => {
       const [empresa, etapas] = await Promise.all([
         crm.from('tenants').select('config').maybeSingle(),
@@ -117,6 +120,9 @@ export function useMeuPapel() {
     queryKey: ['meu-papel', user?.id],
     enabled: !!user,
     staleTime: 5 * 60_000,
+    // Até responder: falha não pode deixar a tela com o padrão da Dom.
+    retry: true,
+    retryDelay: (tentativa: number) => Math.min(1000 * 2 ** tentativa, 10_000),
     queryFn: async () => {
       const { data, error } = await crm.from('user_roles').select('role').eq('user_id', user!.id).maybeSingle();
       // Sem papel o menu mostra tudo: falha tenta de novo, não vira "sem papel".
@@ -166,6 +172,8 @@ export interface Vocabulario {
   /** "seu primeiro lead" */
   primeiro: string;
   funil: string;
+  /** Palavra feminina ("criada", "excluída"). */
+  feminino: boolean;
 }
 
 const maiuscula = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -188,5 +196,6 @@ export function useVocabulario(): Vocabulario {
     um: `${f ? 'uma' : 'um'} ${lead}`,
     primeiro: `${f ? 'sua primeira' : 'seu primeiro'} ${lead}`,
     funil: v.funil ?? 'Funil de Vendas',
+    feminino: f,
   };
 }

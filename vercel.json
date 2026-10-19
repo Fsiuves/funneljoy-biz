@@ -1,10 +1,31 @@
 {
+  "redirects": [
+    {
+      "source": "/app.html",
+      "has": [
+        {
+          "type": "host",
+          "value": "colunaajustada.domintelligence.com"
+        }
+      ],
+      "destination": "/",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",
-      "has": [{ "type": "host", "value": "colunaajustada.domintelligence.com" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "colunaajustada.domintelligence.com"
+        }
+      ],
       "destination": "/marcas/colunaajustada.html"
     },
-    { "source": "/(.*)", "destination": "/app.html" }
+    {
+      "source": "/(.*)",
+      "destination": "/app.html"
+    }
   ]
 }

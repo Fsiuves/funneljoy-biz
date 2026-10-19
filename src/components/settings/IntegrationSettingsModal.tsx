@@ -150,7 +150,7 @@ export function IntegrationSettingsModal({ open, onOpenChange }: IntegrationSett
 
           {!carregandoUnidades && unidades.length === 0 && (
             <div className="rounded-lg border p-4 text-sm text-muted-foreground">
-              Nenhum número de WhatsApp configurado para esta conta. Fale com a Dom Intelligence.
+              Nenhum número de WhatsApp configurado para esta conta. Fale com o suporte.
             </div>
           )}
 

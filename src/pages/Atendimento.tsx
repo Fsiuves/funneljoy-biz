@@ -92,7 +92,7 @@ export default function Atendimento() {
           <MessageCircle className="w-10 h-10 mx-auto text-muted-foreground" />
           <h1 className="text-xl font-semibold mt-4">Atendimento não contratado</h1>
           <p className="text-muted-foreground mt-2">
-            A tela de atendimento pelo WhatsApp não está ativa nesta conta. Fale com a Dom Intelligence.
+            A tela de atendimento pelo WhatsApp não está ativa nesta conta. Fale com o suporte.
           </p>
         </div>
       </MainLayout>

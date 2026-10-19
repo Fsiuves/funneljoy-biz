@@ -140,8 +140,9 @@ export default function Auth() {
           <div className="mt-5 h-1 w-16 rounded-full bg-sidebar-primary" />
         </div>
 
+        {/* No endereço de uma empresa, nada da Dom: só a marca dela. */}
         <p className="hidden lg:block text-xs text-sidebar-foreground/50">
-          {enderecoProprio ? 'Tecnologia Dom Intelligence' : 'Dom Intelligence'}
+          {enderecoProprio ? marca?.nome : 'Dom Intelligence'}
         </p>
       </aside>
 

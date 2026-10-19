@@ -85,6 +85,11 @@ export function ProtectedRoute({ children, requireTenant = true }: ProtectedRout
     return <Navigate to="/auth" replace state={{ from: location }} />;
   }
 
+  // Criar empresa é da Dom: no endereço de uma empresa, nunca.
+  if (marca && location.pathname === '/onboarding') {
+    return <Navigate to="/" replace />;
+  }
+
   if (requireTenant && hasTenant === false && location.pathname !== '/onboarding') {
     return <Navigate to="/onboarding" replace />;
   }

@@ -101,6 +101,9 @@ export function useModulosAtivos() {
     queryKey: ['modulos', user?.id],
     enabled: !!user,
     staleTime: 5 * 60_000,
+    // Até responder: falha não pode deixar a tela com o padrão da Dom.
+    retry: true,
+    retryDelay: (tentativa: number) => Math.min(1000 * 2 ** tentativa, 10_000),
     queryFn: async () => {
       const { data, error } = await crm.from('tenant_modules').select('module_key, ativo, expira_em');
       // Falha não é "sem módulos": viraria "Atendimento não contratado" e menu sem itens.

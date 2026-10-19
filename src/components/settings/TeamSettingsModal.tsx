@@ -53,7 +53,7 @@ const FORM_VAZIO = { usuario: '', name: '', password: '', role: 'atendente' as P
 
 const ERROS_ACESSO: Record<string, string> = {
   senha_fraca: 'A senha precisa de 8 caracteres, com maiúscula, minúscula e número',
-  pessoa_de_outra_empresa: 'Essa pessoa também acessa outra empresa. O acesso dela é cuidado pela Dom Intelligence.',
+  pessoa_de_outra_empresa: 'Essa pessoa também acessa outra empresa. O acesso dela é cuidado pelo suporte.',
   so_atendente: 'A gerente cuida só das atendentes',
   outra_unidade: 'Essa atendente é de outra unidade',
   nao_em_si_mesmo: 'Para a sua própria senha, use a chave no rodapé do menu',
@@ -139,7 +139,9 @@ export function TeamSettingsModal({ open, onOpenChange }: TeamSettingsModalProps
     m.id !== user?.id &&
     (souDirecao || (souGerente && m.role === 'atendente' && (!minhaUnidade || m.unidade === minhaUnidade)));
 
-  const papeisPermitidos = souDirecao ? PAPEIS : PAPEIS.filter((p) => p.valor === 'atendente');
+  // Vendedor é papel da Dom: empresa com vocabulário próprio (a clínica) não vê.
+  const papeisDaEmpresa = v.lead === 'lead' ? PAPEIS : PAPEIS.filter((p) => p.valor !== 'sales');
+  const papeisPermitidos = souDirecao ? papeisDaEmpresa : PAPEIS.filter((p) => p.valor === 'atendente');
 
   // Atendente sempre tem unidade; gerente de unidade só cadastra na dela.
   const unidadesPermitidas = unidades.filter((u) => !souGerente || !minhaUnidade || u.unidade === minhaUnidade);
