@@ -12,9 +12,10 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { avisarConversaAberta } from '@/lib/presenca';
 import {
-  useAtualizarConversa, useConversas, useEquipe, useModulosAtivos, type Conversa,
+  useAtualizarConversa, useConversas, useEquipe, useModulosAtivos, useAnunciosDeOrigem, origemDaConversa, descreverOrigem,
+  type Conversa,
 } from '@/hooks/useAtendimento';
-import { CornerUpLeft, Loader2, MessageCircle, Search, Smartphone } from 'lucide-react';
+import { CornerUpLeft, Loader2, Megaphone, MessageCircle, Search, Smartphone } from 'lucide-react';
 
 type Fila = 'minhas' | 'sem' | 'todas';
 
@@ -23,6 +24,8 @@ interface ItemConversaProps {
   ativa: boolean;
   responsavel: string;
   mostrarUnidade: boolean;
+  /** "Meta · campanha · anúncio", quando o paciente veio de anúncio. */
+  anuncio?: string;
   aoAbrir: (id: string) => void;
 }
 
@@ -30,7 +33,7 @@ interface ItemConversaProps {
  * Uma linha da fila. Com memo, mensagem nova redesenha só a conversa que mudou,
  * não as 500 da lista.
  */
-const ItemConversa = memo(function ItemConversa({ c, ativa, responsavel, mostrarUnidade, aoAbrir }: ItemConversaProps) {
+const ItemConversa = memo(function ItemConversa({ c, ativa, responsavel, mostrarUnidade, anuncio, aoAbrir }: ItemConversaProps) {
   const nome = c.contact_name || formatarTelefone(c.phone);
   return (
     <button
@@ -72,6 +75,12 @@ const ItemConversa = memo(function ItemConversa({ c, ativa, responsavel, mostrar
                 {c.unidade}
               </span>
             )}
+            {anuncio && (
+              <span title={`Veio do anúncio: ${anuncio}`} className="shrink-0 inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-medium">
+                <Megaphone className="w-3 h-3" />
+                Anúncio
+              </span>
+            )}
             <span className="text-[11px] text-muted-foreground truncate">{responsavel}</span>
           </div>
         </div>
@@ -87,6 +96,7 @@ export default function Atendimento() {
   const liberado = !!modulos?.has('atendimento');
   const { data: conversas = [], isLoading } = useConversas(liberado);
   const { data: equipe = [] } = useEquipe();
+  const { data: origens } = useAnunciosDeOrigem(liberado);
   const atualizar = useAtualizarConversa();
 
   const [fila, setFila] = useState<Fila>('todas');
@@ -268,6 +278,7 @@ export default function Atendimento() {
                 ativa={c.id === abertaId}
                 responsavel={c.assigned_to ? nomes.get(c.assigned_to) ?? 'Equipe' : 'Sem responsável'}
                 mostrarUnidade={unidades.length > 1}
+                anuncio={(() => { const o = origemDaConversa(origens, c); return o ? descreverOrigem(o) : undefined; })()}
                 aoAbrir={setAbertaId}
               />
             ))}

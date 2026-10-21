@@ -8,6 +8,11 @@
 //
 // Chamada pela própria tela quando os dados estão velhos, por quem é direção ou
 // gerente. Entre uma e outra, no mínimo 10 minutos, a não ser com "forcar".
+//
+// E pelo pg_cron (26-anuncio-na-conversa.sql), com o cabeçalho
+// x-anuncios-segredo, para todas as empresas com cadastros no Vigia: a cada 2
+// minutos só as origens ({ so_origens: true }), para a conversa mostrar logo o
+// anúncio que trouxe o paciente; de hora em hora, tudo.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { sincronizarAnuncios } from "../_shared/anuncios.ts";
@@ -22,10 +27,31 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+
+    // ---------------------------------------------------- pg_cron
+    const segredo = req.headers.get("x-anuncios-segredo");
+    if (segredo) {
+      if (segredo !== Deno.env.get("ANUNCIOS_SEGREDO")) return resposta({ error: "not_authorized" }, 401);
+      const { so_origens } = await req.json().catch(() => ({}));
+      const crm = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { db: { schema: "crm" } });
+      const { data: empresas, error } = await crm.from("tenants").select("id, config");
+      if (error) throw new Error(error.message);
+      const feitas = [];
+      for (const e of empresas ?? []) {
+        const workspaces: string[] = e.config?.anuncios?.vigia_workspaces ?? [];
+        if (!workspaces.length) continue;
+        if (!so_origens) await crm.from("anuncio_sync").upsert({ tenant_id: e.id, iniciado_em: new Date().toISOString() });
+        const r = await sincronizarAnuncios(crm, e.id, workspaces, { soOrigens: !!so_origens });
+        feitas.push({ tenant: e.id, ok: r.ok, origens: r.detalhe.origens, avisos: r.detalhe.avisos });
+      }
+      return resposta({ ok: true, empresas: feitas });
+    }
+
+    // ---------------------------------------------------- pela tela
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return resposta({ error: "not_authenticated" }, 401);
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const comoUsuario = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: authHeader } },
     });

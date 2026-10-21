@@ -331,6 +331,72 @@ export function useMensagens(conversa: Conversa | null) {
   return consulta;
 }
 
+// ---------------------------------------------------------------- anúncio de origem
+
+export interface OrigemAnuncio {
+  telefone: string;
+  chave_telefone: string | null;
+  unidade: string | null;
+  plataforma: 'meta' | 'google' | string;
+  campanha: string | null;
+  conjunto: string | null;
+  anuncio: string | null;
+  chegou_em: string;
+}
+
+/** Mesma chave do banco (crm.phone_key): 55 + DDD + 8 últimos dígitos. */
+export function chaveTelefone(telefone: string): string {
+  let d = (telefone ?? '').replace(/\D/g, '');
+  if (d.length === 10 || d.length === 11) d = '55' + d;
+  return d.length >= 12 && d.startsWith('55') ? '55' + d.slice(2, 4) + d.slice(-8) : d;
+}
+
+/** "[CA] [LAPA] [Q] - Lapa Agosto/26" vira "Lapa Agosto/26", como na tela de resultados. */
+export const nomeCurtoCampanha = (nome: string) => {
+  const i = nome.indexOf(' - ');
+  return i > 0 && i < nome.length - 3 ? nome.slice(i + 3) : nome;
+};
+
+/**
+ * De qual anúncio veio cada contato (crm.anuncio_origem, copiado do Vigia de 2
+ * em 2 minutos). Fica o mais recente por unidade e telefone.
+ */
+export function useAnunciosDeOrigem(ativo = true) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['anuncio-origem', user?.id],
+    enabled: ativo && !!user,
+    staleTime: 2 * 60_000,
+    refetchInterval: 2 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await crm
+        .from('anuncio_origem')
+        .select('telefone, chave_telefone, unidade, plataforma, campanha, conjunto, anuncio, chegou_em')
+        .order('chegou_em', { ascending: false })
+        .limit(5000);
+      if (error) throw error;
+      const mapa = new Map<string, OrigemAnuncio>();
+      for (const o of (data ?? []) as OrigemAnuncio[]) {
+        const chave = `${o.unidade ?? ''}|${o.chave_telefone ?? chaveTelefone(o.telefone)}`;
+        if (!mapa.has(chave)) mapa.set(chave, o);
+      }
+      return mapa;
+    },
+  });
+}
+
+export function origemDaConversa(mapa: Map<string, OrigemAnuncio> | undefined, c: Pick<Conversa, 'unidade' | 'phone'>) {
+  if (!mapa) return undefined;
+  const chave = chaveTelefone(c.phone);
+  return mapa.get(`${c.unidade}|${chave}`) ?? mapa.get(`|${chave}`);
+}
+
+/** "Meta · Avaliação R$159 · Vídeo dor lombar" */
+export function descreverOrigem(o: OrigemAnuncio): string {
+  const plataforma = o.plataforma === 'google' ? 'Google' : o.plataforma === 'meta' ? 'Meta' : o.plataforma;
+  return [plataforma, o.campanha ? nomeCurtoCampanha(o.campanha) : null, o.anuncio].filter(Boolean).join(' · ');
+}
+
 // ---------------------------------------------------------------- envio na hora
 
 let contadorPendente = 0;

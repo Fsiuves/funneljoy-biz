@@ -74,7 +74,14 @@ async function gastoGoogle(conta: string, token: string, de: string, ate: string
 }
 
 /** Lê o Vigia, a Meta e o Google e grava em crm.anuncio_gasto e crm.anuncio_origem. */
-export async function sincronizarAnuncios(crm: SupabaseClient<any, any, any>, tenant: string, workspaces: string[]) {
+/**
+ * soOrigens: só de qual anúncio veio cada contato, dos últimos 2 dias (o relógio
+ * de 2 em 2 minutos). Sem ele, também o gasto, e a data da última sincronização
+ * que a tela de resultados mostra.
+ */
+export async function sincronizarAnuncios(
+  crm: SupabaseClient<any, any, any>, tenant: string, workspaces: string[], opcoes: { soOrigens?: boolean } = {},
+) {
   const agora = Date.now();
   const { data: numeros } = await crm.from("wa_accounts").select("instancia, unidade").eq("tenant_id", tenant);
   const unidades = [...new Set((numeros ?? []).map((n) => n.unidade).filter(Boolean))] as string[];
@@ -82,10 +89,10 @@ export async function sincronizarAnuncios(crm: SupabaseClient<any, any, any>, te
 
   const { count: jaTem } = await crm.from("anuncio_gasto").select("*", { count: "exact", head: true }).eq("tenant_id", tenant);
   const ate = diaSP(new Date());
-  const de = diaSP(new Date(agora - (jaTem ? 40 : 120) * 86_400_000));
+  const de = diaSP(new Date(agora - (opcoes.soOrigens ? 2 : jaTem ? 40 : 120) * 86_400_000));
 
   const lista = `in.(${workspaces.join(",")})`;
-  const conexoes = await vigia(`ad_connections?workspace_id=${lista}&status=eq.active&select=provider,account_id,access_token,token_expires_at,updated_at&order=updated_at.desc`);
+  const conexoes = opcoes.soOrigens ? [] : await vigia(`ad_connections?workspace_id=${lista}&status=eq.active&select=provider,account_id,access_token,token_expires_at,updated_at&order=updated_at.desc`);
   const avisos: string[] = [];
   const detalhe: Record<string, unknown> = { de, ate };
 
@@ -165,6 +172,7 @@ export async function sincronizarAnuncios(crm: SupabaseClient<any, any, any>, te
 
   detalhe.avisos = avisos;
   const ok = !avisos.some((a) => !a.startsWith("google: acesso vencido"));
+  if (opcoes.soOrigens) return { ok, detalhe };
   await crm.from("anuncio_sync").upsert({
     tenant_id: tenant, concluido_em: new Date().toISOString(), ok, detalhe,
   });

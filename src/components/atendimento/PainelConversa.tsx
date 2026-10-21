@@ -7,7 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   CheckCircle2, RotateCcw, Send, Zap, Loader2, UserPlus, ExternalLink,
   Image as ImageIcon, Mic, Video, FileText, MapPin, Contact, Smile, PhoneOff, CalendarPlus, CalendarCheck,
-  Paperclip, X, Square, Trash2,
+  Paperclip, X, Square, Trash2, Megaphone,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -21,6 +21,7 @@ import {
   abrirMidia, avisoTelefoneMarcado, momentoMensagem, preencherResposta, useMarcarTelefoneEquipe,
   useAtualizarConversa, useEnviarMensagem, useMensagens, useRespostasProntas, useRegrasAtendimento, assinarMensagem,
   lerAnexo, LIMITE_ANEXO, adicionarPendente, confirmarPendente, removerPendente, buscarNovasMensagens,
+  useAnunciosDeOrigem, origemDaConversa, nomeCurtoCampanha,
   type Conversa, type Mensagem, type Pessoa,
 } from '@/hooks/useAtendimento';
 
@@ -578,6 +579,8 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
   }, [mensagens.length, conversa.id]);
 
   const nome = conversa.contact_name || formatarTelefone(conversa.phone);
+  const { data: origens } = useAnunciosDeOrigem();
+  const origem = origemDaConversa(origens, conversa);
   const resolvida = conversa.status === 'resolvida';
 
   const mudar = (campos: Parameters<typeof atualizar.mutate>[0]) =>
@@ -611,6 +614,16 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
             )}
           </div>
           <p className="text-xs text-muted-foreground">{formatarTelefone(conversa.phone)}</p>
+          {origem && (
+            <p className="mt-0.5 flex items-center gap-1 text-xs text-amber-900 min-w-0" title={[origem.campanha, origem.conjunto, origem.anuncio].filter(Boolean).join(' · ')}>
+              <Megaphone className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">
+                Veio do anúncio <b className="font-semibold">{origem.anuncio || 'sem nome'}</b>
+                {origem.campanha && <> · {nomeCurtoCampanha(origem.campanha)}</>}
+                {' · '}{origem.plataforma === 'google' ? 'Google' : 'Meta'} em {format(new Date(origem.chegou_em), 'dd/MM')}
+              </span>
+            </p>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
