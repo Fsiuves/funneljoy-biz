@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { format, isToday, isYesterday, differenceInCalendarDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   CheckCircle2, RotateCcw, Send, Zap, Loader2, UserPlus, ExternalLink,
   Image as ImageIcon, Mic, Video, FileText, MapPin, Contact, Smile, PhoneOff, CalendarPlus, CalendarCheck,
@@ -19,7 +20,7 @@ import {
 import {
   abrirMidia, avisoTelefoneMarcado, momentoMensagem, preencherResposta, useMarcarTelefoneEquipe,
   useAtualizarConversa, useEnviarMensagem, useMensagens, useRespostasProntas, useRegrasAtendimento, assinarMensagem,
-  lerAnexo, LIMITE_ANEXO,
+  lerAnexo, LIMITE_ANEXO, adicionarPendente, confirmarPendente, removerPendente, buscarNovasMensagens,
   type Conversa, type Mensagem, type Pessoa,
 } from '@/hooks/useAtendimento';
 
@@ -141,7 +142,7 @@ function Balao({ m, autor }: { m: Mensagem; autor: string | null }) {
   return (
     <div className={`flex ${deMim ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`max-w-[72%] rounded-2xl px-3.5 py-2 text-sm shadow-sm ${
+        className={`max-w-[72%] rounded-2xl px-3.5 py-2 text-sm shadow-sm ${m.pendente ? 'opacity-70 ' : ''}${
           deMim
             ? 'bg-primary text-primary-foreground rounded-br-md'
             : 'bg-card text-foreground border border-border rounded-bl-md'
@@ -156,7 +157,7 @@ function Balao({ m, autor }: { m: Mensagem; autor: string | null }) {
         )}
         <p className={`text-[11px] mt-1 text-right ${deMim ? 'text-primary-foreground/75' : 'text-muted-foreground'}`}>
           {autor && <>{autor} · </>}
-          {format(new Date(momentoMensagem(m)), 'HH:mm')}
+          {m.pendente ? 'enviando…' : format(new Date(momentoMensagem(m)), 'HH:mm')}
         </p>
       </div>
     </div>
@@ -171,6 +172,12 @@ interface AnexoNaCaixa {
   mimetype: string;
   previa: string;
 }
+
+// Mesmo tipo que a wa-enviar grava (tipoDoAnexo em _shared/wa-provider.ts).
+const tipoDoAnexo = (mime: string) =>
+  /^image\/(jpeg|png|webp)$/.test(mime) ? 'imageMessage'
+    : /^video\/(mp4|3gpp)$/.test(mime) ? 'videoMessage'
+      : mime.startsWith('audio/') ? 'audioMessage' : 'documentMessage';
 
 const tamanho = (bytes: number) =>
   bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -241,8 +248,12 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
   const [listaAberta, setListaAberta] = useState(false);
   const [indice, setIndice] = useState(0);
   const [anexo, setAnexo] = useState<AnexoNaCaixa | null>(null);
-  const [enviando, setEnviando] = useState(false);
   const campo = useRef<HTMLTextAreaElement>(null);
+  const qc = useQueryClient();
+  // Envios saem um depois do outro, na ordem em que foram digitados.
+  const fila = useRef<Promise<void>>(Promise.resolve());
+  const conversaAtual = useRef(conversa.id);
+  conversaAtual.current = conversa.id;
   const seletor = useRef<HTMLInputElement>(null);
   const enviar = useEnviarMensagem();
   const { data: regras } = useRegrasAtendimento();
@@ -298,28 +309,48 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
     requestAnimationFrame(() => campo.current?.focus());
   };
 
-  const mandar = async () => {
+  // A mensagem aparece na conversa na hora, como "enviando", e a caixa já fica
+  // livre para a próxima. Antes a tela esperava o WhatsApp responder e depois
+  // baixava a lista inteira de conversas para mostrar a mensagem.
+  const mandar = () => {
     const corpo = texto.trim();
-    if ((!corpo && !anexo) || enviando) return;
+    if (!corpo && !anexo) return;
     const assinado = corpo && regras?.assinar ? assinarMensagem(corpo, eu?.name) : corpo;
-    setEnviando(true);
-    try {
-      if (!anexo) {
-        await enviar.mutateAsync({ conversationId: conversa.id, texto: assinado });
-      } else {
-        // Áudio não tem legenda: o texto vai logo depois, numa mensagem à parte.
-        const audio = anexo.mimetype.startsWith('audio/');
-        const dados = await lerAnexo(anexo.arquivo, anexo.mimetype, anexo.nome);
-        await enviar.mutateAsync({ conversationId: conversa.id, texto: audio ? '' : assinado, anexo: dados });
-        setAnexo(null);
-        if (audio && assinado) await enviar.mutateAsync({ conversationId: conversa.id, texto: assinado });
+    const doAnexo = anexo;
+    const conv = conversa;
+    // Áudio não tem legenda: o texto vai logo depois, numa mensagem à parte.
+    const audio = !!doAnexo?.mimetype.startsWith('audio/');
+    const pendenteAnexo = doAnexo
+      ? adicionarPendente(qc, conv.id, { body: audio ? null : assinado || null, message_type: tipoDoAnexo(doAnexo.mimetype), sent_by: eu?.id ?? null })
+      : null;
+    const pendenteTexto = (!doAnexo || audio) && assinado
+      ? adicionarPendente(qc, conv.id, { body: assinado, message_type: 'conversation', sent_by: eu?.id ?? null })
+      : null;
+    setTexto('');
+    setAnexo(null);
+
+    fila.current = fila.current.then(async () => {
+      try {
+        if (doAnexo && pendenteAnexo) {
+          const dados = await lerAnexo(doAnexo.arquivo, doAnexo.mimetype, doAnexo.nome);
+          const r = await enviar.mutateAsync({ conversationId: conv.id, texto: audio ? '' : assinado, anexo: dados });
+          confirmarPendente(qc, conv.id, pendenteAnexo, r?.message_id ?? null);
+        }
+        if (pendenteTexto) {
+          const r = await enviar.mutateAsync({ conversationId: conv.id, texto: assinado });
+          confirmarPendente(qc, conv.id, pendenteTexto, r?.message_id ?? null);
+        }
+        void buscarNovasMensagens(qc, conv);
+      } catch (e) {
+        [pendenteAnexo, pendenteTexto].forEach((id) => id && removerPendente(qc, conv.id, id));
+        toast.error(e instanceof Error ? e.message : 'Falha ao enviar');
+        // Devolve o que não saiu, se a pessoa ainda está na mesma conversa e com a caixa vazia.
+        if (conversaAtual.current === conv.id) {
+          if (corpo) setTexto((atual) => atual || corpo);
+          if (doAnexo) setAnexo((atual) => atual ?? { ...doAnexo, previa: URL.createObjectURL(doAnexo.arquivo) });
+        }
       }
-      setTexto('');
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Falha ao enviar');
-    } finally {
-      setEnviando(false);
-    }
+    });
   };
 
   const teclas = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -388,7 +419,7 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
               {anexo.mimetype.startsWith('audio/') ? 'sai como mensagem de voz; o texto vai à parte' : 'o texto vai como legenda'}
             </p>
           </div>
-          <Button type="button" variant="ghost" size="icon" title="Tirar anexo" disabled={enviando} onClick={() => setAnexo(null)}>
+          <Button type="button" variant="ghost" size="icon" title="Tirar anexo" onClick={() => setAnexo(null)}>
             <X className="w-4 h-4" />
           </Button>
         </div>
@@ -437,7 +468,6 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
             size="icon"
             className="shrink-0 text-muted-foreground"
             title="Anexar foto, vídeo, áudio ou documento"
-            disabled={enviando}
             onClick={() => seletor.current?.click()}
           >
             <Paperclip className="w-5 h-5" />
@@ -462,8 +492,8 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
             className="flex-1 resize-none rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
           {texto.trim() || anexo ? (
-            <Button type="button" onClick={mandar} disabled={enviando} className="shrink-0 h-10" title="Enviar">
-              {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            <Button type="button" onClick={mandar} className="shrink-0 h-10" title="Enviar">
+              <Send className="w-4 h-4" />
             </Button>
           ) : (
             <Button type="button" variant="outline" onClick={gravacao.comecar} className="shrink-0 h-10" title="Gravar áudio">

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
@@ -40,6 +40,8 @@ export interface Mensagem {
   timestamp_unix: number | null;
   sent_by: string | null;
   evolution_message_id: string | null;
+  /** Enviada pelo painel e ainda sem resposta do WhatsApp: aparece na hora como "enviando". */
+  pendente?: boolean;
 }
 
 export interface RespostaPronta {
@@ -167,12 +169,45 @@ export function useEquipe() {
 
 // ---------------------------------------------------------------- conversas
 
+// A lista tem 500 conversas (uns 400 KB). Antes ela vinha inteira a cada
+// mensagem que entrava ou saía, em cada CRM aberto, e a mensagem nova só
+// aparecia depois desse download e de outro com as 300 da conversa. Agora o
+// tempo real troca só a conversa que mudou; a lista inteira vem ao abrir, a
+// cada 2 minutos (rede de segurança) e ao voltar para a aba depois de 1 minuto.
+
+const recente = (c: Conversa) => (c.last_message_at ? Date.parse(c.last_message_at) : 0);
+const maisRecentePrimeiro = (a: Conversa, b: Conversa) => recente(b) - recente(a);
+
+// Mudanças do tempo real dos últimos 30 s: uma busca da lista que saiu antes
+// delas não pode desfazê-las.
+const mudancasRecentes = new Map<string, { conversa: Conversa; em: number }>();
+const maisNova = (a: Conversa, b: Conversa) => (Date.parse(b.updated_at ?? '') > Date.parse(a.updated_at ?? '') ? b : a);
+
+function comMudancasRecentes(lista: Conversa[]): Conversa[] {
+  const agora = Date.now();
+  let mudou = false;
+  const porId = new Map(lista.map((c) => [c.id, c]));
+  for (const [id, { conversa, em }] of mudancasRecentes) {
+    if (agora - em > 30_000) {
+      mudancasRecentes.delete(id);
+      continue;
+    }
+    const atual = porId.get(id);
+    const vale = atual ? maisNova(atual, { ...atual, ...conversa }) : conversa;
+    if (vale !== atual) {
+      porId.set(id, vale);
+      mudou = true;
+    }
+  }
+  return mudou ? [...porId.values()].sort(maisRecentePrimeiro) : lista;
+}
+
 export function useConversas(ativo = true) {
   return useQuery({
     queryKey: ['conversas'],
     enabled: ativo,
-    // Rede de segurança: se o tempo real cair, a lista ainda anda.
-    refetchInterval: 60_000,
+    staleTime: 60_000,
+    refetchInterval: 120_000,
     queryFn: async () => {
       const { data, error } = await crm
         .from('conversations')
@@ -180,9 +215,27 @@ export function useConversas(ativo = true) {
         .order('last_message_at', { ascending: false, nullsFirst: false })
         .limit(500);
       if (error) throw error;
-      return (data ?? []) as Conversa[];
+      return comMudancasRecentes((data ?? []) as Conversa[]);
     },
   });
+}
+
+/** Aplica um evento do tempo real na lista: só a conversa que mudou é trocada. */
+export function aplicarMudancaConversa(
+  lista: Conversa[] | undefined,
+  evento: { eventType: string; new: Partial<Conversa>; old: Partial<Conversa> },
+): Conversa[] | undefined {
+  if (!lista) return lista;
+  if (evento.eventType === 'DELETE') {
+    const id = evento.old?.id;
+    return id ? lista.filter((c) => c.id !== id) : lista;
+  }
+  const nova = evento.new;
+  if (!nova?.id) return lista;
+  const atual = lista.find((c) => c.id === nova.id);
+  const juntada = { ...atual, ...nova } as Conversa;
+  mudancasRecentes.set(juntada.id, { conversa: juntada, em: Date.now() });
+  return [juntada, ...lista.filter((c) => c.id !== nova.id)].sort(maisRecentePrimeiro);
 }
 
 /**
@@ -198,8 +251,8 @@ export function useConversasTempoReal(ativo: boolean) {
     if (!ativo) return;
     const canal = supabase
       .channel(nome.current)
-      .on('postgres_changes', { event: '*', schema: 'crm', table: 'conversations' }, () => {
-        qc.invalidateQueries({ queryKey: ['conversas'] });
+      .on('postgres_changes', { event: '*', schema: 'crm', table: 'conversations' }, (evento: any) => {
+        qc.setQueryData<Conversa[]>(['conversas'], (lista) => aplicarMudancaConversa(lista, evento));
       })
       .subscribe();
     return () => {
@@ -208,25 +261,106 @@ export function useConversasTempoReal(ativo: boolean) {
   }, [ativo, qc]);
 }
 
+const CAMPOS_MENSAGEM = 'id, created_at, body, message_type, is_from_me, timestamp_unix, sent_by, evolution_message_id';
+const emOrdem = (lista: Mensagem[]) => [...lista].sort((a, b) => momentoMensagem(a) - momentoMensagem(b));
+
+/** Junta mensagens do banco às da tela; a "enviando" some quando a dela chega. */
+function juntarMensagens(lista: Mensagem[], novas: Mensagem[]): Mensagem[] {
+  const porId = new Map(lista.map((m) => [m.id, m]));
+  for (const m of novas) porId.set(m.id, m);
+  const reais = novas.filter((m) => m.is_from_me);
+  for (const [id, m] of porId) {
+    if (m.pendente && reais.some((r) => r.body === m.body && r.message_type === m.message_type
+      && Math.abs(Date.parse(r.created_at) - Date.parse(m.created_at)) < 120_000)) porId.delete(id);
+  }
+  return emOrdem([...porId.values()]);
+}
+
+/**
+ * Busca só as mensagens recentes da conversa e junta às que já estão na tela.
+ * Volta 2 minutos para não perder mensagem gravada fora de ordem.
+ */
+export async function buscarNovasMensagens(qc: QueryClient, conversa: Conversa) {
+  const chave = ['mensagens', conversa.id];
+  const atuais = qc.getQueryData<Mensagem[]>(chave);
+  if (!atuais) return;
+  const reais = atuais.filter((m) => !m.pendente);
+  let consulta = radar
+    .from('messages')
+    .select(CAMPOS_MENSAGEM)
+    .eq('company_id', conversa.radar_company_id)
+    .eq('phone_number', conversa.phone)
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (reais.length) {
+    const ultima = Math.max(...reais.map((m) => Date.parse(m.created_at)));
+    consulta = consulta.gte('created_at', new Date(ultima - 120_000).toISOString());
+  }
+  const { data, error } = await consulta;
+  if (error || !data) return;
+  qc.setQueryData<Mensagem[]>(chave, (lista = []) => juntarMensagens(lista, data as Mensagem[]));
+}
+
 export function useMensagens(conversa: Conversa | null) {
-  return useQuery({
-    // last_message_at na chave: mensagem nova na conversa aberta recarrega o histórico.
-    queryKey: ['mensagens', conversa?.id, conversa?.last_message_at],
+  const qc = useQueryClient();
+  const consulta = useQuery({
+    queryKey: ['mensagens', conversa?.id],
     enabled: !!conversa,
-    placeholderData: (anterior, consulta) =>
-      consulta?.queryKey[1] === conversa?.id ? anterior : undefined,
+    staleTime: 30_000,
     queryFn: async () => {
       const { data, error } = await radar
         .from('messages')
-        .select('id, created_at, body, message_type, is_from_me, timestamp_unix, sent_by, evolution_message_id')
+        .select(CAMPOS_MENSAGEM)
         .eq('company_id', conversa!.radar_company_id)
         .eq('phone_number', conversa!.phone)
         .order('created_at', { ascending: false })
         .limit(300);
       if (error) throw error;
-      return ((data ?? []) as Mensagem[]).sort((a, b) => momentoMensagem(a) - momentoMensagem(b));
+      return emOrdem((data ?? []) as Mensagem[]);
     },
   });
+
+  // Mensagem nova na conversa aberta (o tempo real muda o last_message_at):
+  // vêm só as recentes, em vez das 300 de novo.
+  const ultima = conversa?.last_message_at;
+  useEffect(() => {
+    if (conversa) void buscarNovasMensagens(qc, conversa);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversa?.id, ultima]);
+
+  return consulta;
+}
+
+// ---------------------------------------------------------------- envio na hora
+
+let contadorPendente = 0;
+
+/** Põe a mensagem na conversa na hora, como "enviando", antes da resposta do WhatsApp. */
+export function adicionarPendente(
+  qc: QueryClient,
+  conversaId: string,
+  m: { body: string | null; message_type: string; sent_by: string | null },
+): string {
+  const id = `pendente-${Date.now()}-${++contadorPendente}`;
+  const agora = new Date();
+  qc.setQueryData<Mensagem[]>(['mensagens', conversaId], (lista = []) => [...lista, {
+    id, created_at: agora.toISOString(), body: m.body, message_type: m.message_type, is_from_me: true,
+    timestamp_unix: Math.floor(agora.getTime() / 1000), sent_by: m.sent_by, evolution_message_id: null, pendente: true,
+  }]);
+  return id;
+}
+
+/** Enviada: a "enviando" vira a mensagem gravada (ou sai, se a gravada já chegou). */
+export function confirmarPendente(qc: QueryClient, conversaId: string, idPendente: string, idReal: string | null) {
+  qc.setQueryData<Mensagem[]>(['mensagens', conversaId], (lista) => {
+    if (!lista) return lista;
+    if (idReal && lista.some((m) => m.id === idReal)) return lista.filter((m) => m.id !== idPendente);
+    return lista.map((m) => (m.id === idPendente ? { ...m, id: idReal ?? m.id, pendente: false } : m));
+  });
+}
+
+export function removerPendente(qc: QueryClient, conversaId: string, idPendente: string) {
+  qc.setQueryData<Mensagem[]>(['mensagens', conversaId], (lista) => lista?.filter((m) => m.id !== idPendente));
 }
 
 /** Arquivo pronto para a wa-enviar: base64 sem o prefixo "data:". */
@@ -248,19 +382,16 @@ export function lerAnexo(arquivo: Blob, mimetype: string, nome: string): Promise
 }
 
 export function useEnviarMensagem() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ conversationId, texto, anexo }: { conversationId: string; texto: string; anexo?: AnexoEnvio }) => {
       const { data, error } = await supabase.functions.invoke('wa-enviar', {
         body: { conversation_id: conversationId, texto, anexo },
       });
       if (error || data?.error) throw new Error(await erroDaFuncao(error, data));
-      return data;
+      return data as { ok: boolean; registrada: boolean; message_id: string | null };
     },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ['conversas'] });
-      qc.invalidateQueries({ queryKey: ['mensagens'] });
-    },
+    // A conversa muda pelo tempo real e as mensagens chegam por buscarNovasMensagens:
+    // nada de baixar a lista inteira a cada envio.
   });
 }
 
@@ -282,10 +413,11 @@ export function useAtualizarConversa() {
       );
       return { anterior };
     },
+    // Deu certo: o tempo real confirma. Só a falha desfaz e busca a lista de novo.
     onError: (_e, _v, ctx) => {
       if (ctx?.anterior) qc.setQueryData(['conversas'], ctx.anterior);
+      qc.invalidateQueries({ queryKey: ['conversas'] });
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['conversas'] }),
   });
 }
 
