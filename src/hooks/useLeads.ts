@@ -22,6 +22,7 @@ interface LeadRow {
   created_by: string;
   tenant_id: string | null;
   notes?: string | null;
+  unidade?: string | null;
 }
 
 const mapLeadFromDb = (row: LeadRow): Lead => ({
@@ -39,6 +40,7 @@ const mapLeadFromDb = (row: LeadRow): Lead => ({
   createdAt: new Date(row.created_at),
   updatedAt: new Date(row.updated_at),
   notes: row.notes || undefined,
+  unidade: row.unidade || undefined,
 });
 
 async function getUserTenantId(): Promise<string | null> {

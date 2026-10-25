@@ -300,7 +300,7 @@ export default function Leads() {
         }}
       />
       <MudarEtapaDialog
-        lead={mudandoEtapa ? { id: mudandoEtapa.id, name: mudandoEtapa.name, stage: mudandoEtapa.stage } : null}
+        lead={mudandoEtapa ? { id: mudandoEtapa.id, name: mudandoEtapa.name, stage: mudandoEtapa.stage, unidade: mudandoEtapa.unidade } : null}
         onClose={() => setMudandoEtapa(null)}
       />
     </MainLayout>

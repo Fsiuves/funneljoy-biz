@@ -12,11 +12,11 @@ import {
 } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
 import { useEtapas } from '@/hooks/useEmpresa';
-import { ETAPA_PEDE_DATA, ETAPA_PEDE_VALOR, lerValor, useMudarEtapa } from '@/hooks/useAgenda';
+import { ETAPA_PEDE_DATA, ETAPA_PEDE_VALOR, lerValor, useMudarEtapa, useUnidadesDaEmpresa } from '@/hooks/useAgenda';
 
 interface MudarEtapaDialogProps {
   /** O paciente; nulo fecha a janela. */
-  lead: { id: string; name: string; stage: string } | null;
+  lead: { id: string; name: string; stage: string; unidade?: string | null } | null;
   /** Etapa já escolhida (ao arrastar no funil). Sem ela, a janela pergunta. */
   etapa?: string | null;
   onClose: () => void;
@@ -34,7 +34,10 @@ const AVISO: Record<string, string> = {
 export function MudarEtapaDialog({ lead, etapa: etapaInicial, onClose }: MudarEtapaDialogProps) {
   const { etapas, rotulo } = useEtapas();
   const mudar = useMudarEtapa();
+  const { data: unidades = [] } = useUnidadesDaEmpresa();
   const [etapa, setEtapa] = useState('');
+  // Onde é a avaliação; em outra unidade, o paciente passa para ela.
+  const [unidade, setUnidade] = useState('');
   const [dia, setDia] = useState('');
   const [hora, setHora] = useState('');
   const [valor, setValor] = useState('');
@@ -49,7 +52,10 @@ export function MudarEtapaDialog({ lead, etapa: etapaInicial, onClose }: MudarEt
     setValor('');
     setPlano('');
     setSessoes('');
+    setUnidade(lead.unidade ?? '');
   }, [lead?.id, etapaInicial]);
+
+  const mudaUnidade = etapa === ETAPA_PEDE_DATA && !!unidade && !!lead?.unidade && unidade !== lead.unidade;
 
   const salvar = () => {
     if (!lead || !etapa) return;
@@ -74,10 +80,11 @@ export function MudarEtapaDialog({ lead, etapa: etapaInicial, onClose }: MudarEt
       {
         leadId: lead.id, etapa, quando, valor: v,
         plano: plano.trim() || null, sessoes: Number.isInteger(n) && n > 0 ? n : null,
+        unidade: etapa === ETAPA_PEDE_DATA ? unidade || null : null,
       },
       {
         onSuccess: () => {
-          toast.success(`${lead.name}: ${rotulo(etapa)}`);
+          toast.success(`${lead.name}: ${rotulo(etapa)}${mudaUnidade ? `, unidade ${unidade}` : ''}`);
           onClose();
         },
         onError: (e) => toast.error(e.message),
@@ -115,7 +122,21 @@ export function MudarEtapaDialog({ lead, etapa: etapaInicial, onClose }: MudarEt
                 <Input type="date" value={dia} onChange={(e) => setDia(e.target.value)} />
                 <Input type="time" value={hora} step={300} onChange={(e) => setHora(e.target.value)} />
               </div>
-              <p className="text-xs text-muted-foreground">Entra na Agenda desse dia.</p>
+              {unidades.length > 1 && (
+                <Select value={unidade} onValueChange={setUnidade}>
+                  <SelectTrigger aria-label="Unidade da avaliação"><SelectValue placeholder="Unidade" /></SelectTrigger>
+                  <SelectContent>
+                    {unidades.map((u) => (
+                      <SelectItem key={u} value={u}>Unidade {u}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <p className="text-xs text-muted-foreground">
+                {mudaUnidade
+                  ? `${lead?.name} passa para a unidade ${unidade} e entra na Agenda de lá.`
+                  : 'Entra na Agenda desse dia.'}
+              </p>
             </div>
           )}
 

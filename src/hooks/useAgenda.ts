@@ -47,14 +47,14 @@ export function useAvaliacaoAberta(leadId: string | null | undefined) {
     queryFn: async () => {
       const { data, error } = await crm
         .from('avaliacoes')
-        .select('id, marcada_para')
+        .select('id, marcada_para, unidade')
         .eq('lead_id', leadId)
         .eq('status', 'agendada')
         .order('marcada_para', { ascending: false })
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      return (data ?? null) as { id: string; marcada_para: string } | null;
+      return (data ?? null) as { id: string; marcada_para: string; unidade: string | null } | null;
     },
   });
 }
@@ -67,6 +67,7 @@ const ERROS: Record<string, string> = {
   valor_invalido: 'Informe o valor do plano',
   data_invalida: 'Escolha o dia e a hora',
   etapa_invalida: 'Essa etapa não existe no funil',
+  unidade_invalida: 'Essa unidade não existe',
 };
 
 async function chamar(fn: string, args: Record<string, unknown>) {
@@ -84,13 +85,44 @@ function useRegistro<T>(fn: (v: T) => Promise<unknown>) {
       qc.invalidateQueries({ queryKey: ['avaliacoes'] });
       qc.invalidateQueries({ queryKey: ['avaliacao-aberta'] });
       qc.invalidateQueries({ queryKey: ['leads'] });
+      qc.invalidateQueries({ queryKey: ['unidade-do-paciente'] });
     },
   });
 }
 
+/**
+ * Unidade em branco: a do paciente. Em outra unidade, o paciente passa para ela
+ * (crm.agendar_avaliacao), para a recepção de lá ver na Agenda e marcar presença.
+ */
 export const useAgendarAvaliacao = () =>
-  useRegistro(({ leadId, quando }: { leadId: string; quando: Date }) =>
-    chamar('agendar_avaliacao', { _lead_id: leadId, _quando: quando.toISOString() }));
+  useRegistro(({ leadId, quando, unidade }: { leadId: string; quando: Date; unidade?: string | null }) =>
+    chamar('agendar_avaliacao', { _lead_id: leadId, _quando: quando.toISOString(), _unidade: unidade || null }));
+
+/** As unidades da empresa, para escolher onde é a avaliação (crm.unidades_da_empresa). */
+export function useUnidadesDaEmpresa() {
+  return useQuery({
+    queryKey: ['unidades-da-empresa'],
+    staleTime: 10 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await crm.rpc('unidades_da_empresa');
+      if (error) throw error;
+      return (data ?? []) as string[];
+    },
+  });
+}
+
+/** A unidade do paciente, para a conversa saber onde ele está. */
+export function useUnidadeDoPaciente(leadId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['unidade-do-paciente', leadId],
+    enabled: !!leadId,
+    queryFn: async () => {
+      const { data, error } = await crm.from('leads').select('unidade').eq('id', leadId).maybeSingle();
+      if (error) throw error;
+      return (data?.unidade ?? null) as string | null;
+    },
+  });
+}
 
 export const useRegistrarPresenca = () =>
   useRegistro(({ id, compareceu }: { id: string; compareceu: boolean }) =>
@@ -110,12 +142,13 @@ export const useRegistrarFechamento = () =>
  * valor. Assim funil, Agenda e Resultados contam a mesma coisa.
  */
 export const useMudarEtapa = () =>
-  useRegistro(({ leadId, etapa, quando, valor, plano, sessoes }: {
+  useRegistro(({ leadId, etapa, quando, valor, plano, sessoes, unidade }: {
     leadId: string; etapa: string; quando?: Date | null; valor?: number | null; plano?: string | null; sessoes?: number | null;
+    unidade?: string | null;
   }) =>
     chamar('mudar_etapa', {
       _lead_id: leadId, _etapa: etapa, _quando: quando ? quando.toISOString() : null,
-      _valor: valor ?? null, _plano: plano ?? null, _sessoes: sessoes ?? null,
+      _valor: valor ?? null, _plano: plano ?? null, _sessoes: sessoes ?? null, _unidade: unidade || null,
     }));
 
 /** Etapas que pedem algo antes de mudar. */

@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { useAgendarAvaliacao, useAvaliacaoAberta } from '@/hooks/useAgenda';
+import { useAgendarAvaliacao, useAvaliacaoAberta, useUnidadeDoPaciente, useUnidadesDaEmpresa } from '@/hooks/useAgenda';
 import { useMeuPapel } from '@/hooks/useEmpresa';
 import { Button } from '@/components/ui/button';
 import {
@@ -535,16 +535,23 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
   // e entra na Agenda do dia (crm.agendar_avaliacao).
   const { data: avaliacaoAberta } = useAvaliacaoAberta(conversa.interna ? null : conversa.lead_id);
   const agendar = useAgendarAvaliacao();
+  // A unidade da avaliação: Osasco conversa com paciente que vai ser atendido na
+  // Lapa. Em outra unidade, o paciente passa para ela.
+  const { data: unidadesEmpresa = [] } = useUnidadesDaEmpresa();
+  const { data: unidadePaciente } = useUnidadeDoPaciente(conversa.interna ? null : conversa.lead_id);
   const [agendaAberta, setAgendaAberta] = useState(false);
   const [diaAv, setDiaAv] = useState('');
   const [horaAv, setHoraAv] = useState('');
+  const [unidadeAv, setUnidadeAv] = useState('');
   const abrirAgenda = (aberta: boolean) => {
     setAgendaAberta(aberta);
     if (!aberta) return;
     const base = avaliacaoAberta ? new Date(avaliacaoAberta.marcada_para) : null;
     setDiaAv(format(base ?? new Date(), 'yyyy-MM-dd'));
     setHoraAv(base ? format(base, 'HH:mm') : '');
+    setUnidadeAv(unidadePaciente ?? conversa.unidade ?? '');
   };
+  const mudaUnidade = !!unidadeAv && !!unidadePaciente && unidadeAv !== unidadePaciente;
   const salvarAgenda = () => {
     if (!diaAv || !horaAv || !conversa.lead_id) {
       toast.error('Escolha o dia e a hora');
@@ -552,10 +559,14 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
     }
     const quando = new Date(`${diaAv}T${horaAv}`);
     agendar.mutate(
-      { leadId: conversa.lead_id, quando },
+      { leadId: conversa.lead_id, quando, unidade: unidadeAv || null },
       {
         onSuccess: () => {
-          toast.success(`Avaliação marcada para ${format(quando, "EEEE, d/MM 'às' HH:mm", { locale: ptBR })}`);
+          toast.success(
+            `Avaliação marcada para ${format(quando, "EEEE, d/MM 'às' HH:mm", { locale: ptBR })}`
+              + (mudaUnidade ? `, unidade ${unidadeAv}. ${nome} passou para ${unidadeAv}.` : ''),
+            { duration: mudaUnidade ? 8000 : 4000 },
+          );
           setAgendaAberta(false);
         },
         onError: (e) => toast.error(e.message),
@@ -698,8 +709,22 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
                   <Input type="date" value={diaAv} onChange={(e) => setDiaAv(e.target.value)} className="h-9" />
                   <Input type="time" value={horaAv} onChange={(e) => setHoraAv(e.target.value)} step={300} className="h-9" />
                 </div>
+                {unidadesEmpresa.length > 1 && (
+                  <Select value={unidadeAv} onValueChange={setUnidadeAv}>
+                    <SelectTrigger className="h-9" aria-label="Unidade da avaliação">
+                      <SelectValue placeholder="Unidade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {unidadesEmpresa.map((u) => (
+                        <SelectItem key={u} value={u}>Unidade {u}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <p className="text-xs text-muted-foreground">
-                  {nome} vai para "Agendou avaliação" e aparece na Agenda do dia.
+                  {mudaUnidade
+                    ? `${nome} passa para a unidade ${unidadeAv}, vai para "Agendou avaliação" e aparece na Agenda de lá.`
+                    : `${nome} vai para "Agendou avaliação" e aparece na Agenda do dia.`}
                 </p>
                 <div className="flex justify-end gap-2">
                   <Button size="sm" variant="ghost" onClick={() => setAgendaAberta(false)}>Cancelar</Button>

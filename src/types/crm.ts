@@ -35,6 +35,7 @@ export interface Lead {
   nextFollowUp?: Date;
   tags?: string[];
   notes?: string;
+  unidade?: string;
 }
 
 export type LeadStepKey =
