@@ -7,7 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   CheckCircle2, RotateCcw, Send, Zap, Loader2, UserPlus, ExternalLink,
   Image as ImageIcon, Mic, Video, FileText, MapPin, Contact, Smile, PhoneOff, CalendarPlus, CalendarCheck,
-  Paperclip, X, Square, Trash2, Megaphone,
+  Paperclip, X, Square, Trash2, Megaphone, ListPlus,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -21,7 +21,7 @@ import {
   abrirMidia, avisoTelefoneMarcado, momentoMensagem, preencherResposta, useMarcarTelefoneEquipe,
   useAtualizarConversa, useEnviarMensagem, useMensagens, useRespostasProntas, useRegrasAtendimento, assinarMensagem,
   lerAnexo, LIMITE_ANEXO, adicionarPendente, confirmarPendente, removerPendente, buscarNovasMensagens,
-  useAnunciosDeOrigem, origemDaConversa, nomeCurtoCampanha,
+  useAnunciosDeOrigem, origemDaConversa, nomeCurtoCampanha, useColocarNoFunil,
   type Conversa, type Mensagem, type Pessoa,
 } from '@/hooks/useAtendimento';
 
@@ -529,6 +529,7 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
   const nomes = useMemo(() => new Map(equipe.map((p) => [p.id, p.name || p.email])), [equipe]);
   const { data: papel } = useMeuPapel();
   const marcarEquipe = useMarcarTelefoneEquipe();
+  const colocarNoFunil = useColocarNoFunil();
 
   // Agendar a avaliação sai da própria conversa: o paciente vai para "Agendou"
   // e entra na Agenda do dia (crm.agendar_avaliacao).
@@ -613,7 +614,30 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
               <span className="shrink-0 text-[11px] px-1.5 py-0.5 rounded bg-green-100 text-green-800">Resolvida</span>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">{formatarTelefone(conversa.phone)}</p>
+          <p className="text-xs text-muted-foreground">
+            {formatarTelefone(conversa.phone)}
+            {/* Conversa que a clínica começou não cria paciente sozinha, e sem
+                paciente não há como agendar. */}
+            {!conversa.interna && !conversa.lead_id && (
+              <>
+                {' · não está no funil · '}
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 font-medium text-primary hover:underline disabled:opacity-50"
+                  disabled={colocarNoFunil.isPending}
+                  onClick={() => colocarNoFunil.mutate(conversa.id, {
+                    onSuccess: (r) => toast.success(r.novo
+                      ? `${nome} entrou no funil`
+                      : 'Conversa ligada ao cadastro que já estava no funil'),
+                    onError: (e) => toast.error(e.message),
+                  })}
+                >
+                  <ListPlus className="w-3.5 h-3.5" />
+                  Colocar no funil
+                </button>
+              </>
+            )}
+          </p>
           {origem && (
             <p className="mt-0.5 flex items-center gap-1 text-xs text-amber-900 min-w-0" title={[origem.campanha, origem.conjunto, origem.anuncio].filter(Boolean).join(' · ')}>
               <Megaphone className="w-3.5 h-3.5 shrink-0" />

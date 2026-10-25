@@ -487,6 +487,35 @@ export function useAtualizarConversa() {
   });
 }
 
+const ERROS_FUNIL: Record<string, string> = {
+  outra_unidade: 'Essa conversa é de outra unidade',
+  not_authorized: 'Você não tem permissão para isso',
+  nao_encontrado: 'Conversa não encontrada',
+};
+
+/**
+ * Conversa que a clínica começou (contato passado por outra unidade, indicação)
+ * não cria paciente sozinha: quem atende põe no funil pela conversa
+ * (crm.conversa_para_funil). Telefone já cadastrado só liga.
+ */
+export function useColocarNoFunil() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (conversaId: string) => {
+      const { data, error } = await crm.rpc('conversa_para_funil', { _conversa: conversaId });
+      if (error) throw new Error(error.message);
+      if (!data?.success) throw new Error(ERROS_FUNIL[data?.error] ?? data?.error ?? 'Não foi possível colocar no funil');
+      return data as { lead_id: string; novo: boolean };
+    },
+    onSuccess: (r, conversaId) => {
+      qc.setQueryData<Conversa[]>(['conversas'], (lista) =>
+        lista?.map((c) => (c.id === conversaId ? { ...c, lead_id: r.lead_id } : c)),
+      );
+      qc.invalidateQueries({ queryKey: ['leads'] });
+    },
+  });
+}
+
 export async function abrirMidia(messageId: string): Promise<{ url?: string; mimetype?: string; erro?: string }> {
   const { data, error } = await supabase.functions.invoke('wa-midia', { body: { message_id: messageId } });
   if (error || data?.error) return { erro: await erroDaFuncao(error, data) };
