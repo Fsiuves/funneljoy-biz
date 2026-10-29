@@ -94,7 +94,7 @@ export default function Atendimento() {
   const { user } = useAuth();
   const { data: modulos, isLoading: carregandoModulos } = useModulosAtivos();
   const liberado = !!modulos?.has('atendimento');
-  const { data: conversas = [], isLoading } = useConversas(liberado);
+  const { data: conversas = [], isLoading, isError, isFetching, refetch } = useConversas(liberado);
   const { data: equipe = [] } = useEquipe();
   const { data: origens } = useAnunciosDeOrigem(liberado);
   const atualizar = useAtualizarConversa();
@@ -254,7 +254,17 @@ export default function Atendimento() {
               </div>
             )}
 
-            {!isLoading && conversas.length === 0 && (
+            {/* Erro não é "nenhuma conversa": a falha de conexão aparecia como WhatsApp desconectado. */}
+            {!isLoading && isError && conversas.length === 0 && (
+              <div className="px-6 py-12 flex flex-col items-center gap-3 text-center text-sm text-muted-foreground">
+                <p>Não foi possível carregar as conversas.</p>
+                <Button size="sm" variant="outline" disabled={isFetching} onClick={() => void refetch()}>
+                  {isFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Tentar de novo'}
+                </Button>
+              </div>
+            )}
+
+            {!isLoading && !isError && conversas.length === 0 && (
               <div className="px-6 py-12 text-center">
                 <Smartphone className="w-8 h-8 mx-auto text-muted-foreground" />
                 <p className="mt-3 text-sm text-foreground font-medium">Nenhuma conversa ainda</p>

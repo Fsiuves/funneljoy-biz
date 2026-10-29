@@ -20,6 +20,9 @@ export default function Leads() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  // Com 1.273 pacientes a tabela inteira de uma vez pesava e piscava por um minuto
+  // (cada linha entrava com atraso pela posição). Mostra 100 por vez; a busca procura em todos.
+  const [limite, setLimite] = useState(100);
   const [detailsLead, setDetailsLead] = useState<Lead | null>(null);
   const [editLead, setEditLead] = useState<Lead | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -153,11 +156,11 @@ export default function Leads() {
                 </tr>
               </thead>
               <tbody>
-                {filteredLeads.map((lead, index) => (
+                {filteredLeads.slice(0, limite).map((lead, index) => (
                   <tr 
                     key={lead.id} 
                     className="border-b border-border hover:bg-muted/30 transition-colors animate-slide-up"
-                    style={{ animationDelay: `${index * 0.05}s` }}
+                    style={{ animationDelay: `${Math.min(index, 10) * 0.05}s` }}
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -270,6 +273,15 @@ export default function Leads() {
                 ))}
               </tbody>
             </table>
+            {filteredLeads.length > limite && (
+              <button
+                type="button"
+                className="w-full border-t border-border py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                onClick={() => setLimite((l) => l + 100)}
+              >
+                Mostrar mais ({filteredLeads.length - limite})
+              </button>
+            )}
           </div>
         )}
       </div>

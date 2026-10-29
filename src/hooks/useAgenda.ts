@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { buscarTudo } from '@/lib/buscarTudo';
 
 // A tabela de avaliações não está nos tipos gerados do Lovable.
 const crm = supabase as any;
@@ -214,14 +215,14 @@ export function usePlanos() {
   return useQuery({
     queryKey: ['avaliacoes', 'planos'],
     queryFn: async () => {
-      const { data, error } = await crm
+      return buscarTudo<PlanoFechado>((de, ate) => crm
         .from('avaliacoes')
         .select('id, lead_id, unidade, valor_plano, plano, sessoes, fechamento_em, fechamento_por, forma_fechamento, leads(name, phone)')
         .eq('fechou_plano', true)
         .neq('status', 'cancelada')
-        .order('fechamento_em', { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as PlanoFechado[];
+        .order('fechamento_em', { ascending: false })
+        .order('id')
+        .range(de, ate));
     },
   });
 }

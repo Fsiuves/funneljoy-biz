@@ -280,7 +280,7 @@ export default function FollowUps() {
       {sectionLeads.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {sectionLeads.map((lead, index) => (
-            <div key={lead.id} className="animate-slide-up" style={{ animationDelay: `${index * 0.1}s` }}>
+            <div key={lead.id} className="animate-slide-up" style={{ animationDelay: `${Math.min(index, 10) * 0.1}s` }}>
               <FollowUpCard lead={lead} isOverdue={isOverdue} />
             </div>
           ))}
@@ -394,7 +394,7 @@ export default function FollowUps() {
                   <div
                     key={activity.id}
                     className="bg-card rounded-xl p-6 shadow-card hover:shadow-card-hover transition-all duration-300 animate-slide-up"
-                    style={{ animationDelay: `${index * 0.1}s` }}
+                    style={{ animationDelay: `${Math.min(index, 10) * 0.1}s` }}
                   >
                     <div className="flex gap-4">
                       <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border ${colorClass}`}>

@@ -47,6 +47,35 @@ export function useLeadSteps(leadId?: string) {
   });
 }
 
+/**
+ * Quantas etapas da sequência cada paciente já fez, numa consulta só, para os
+ * cartões do funil. Antes cada cartão buscava as suas: com 1.273 pacientes, o
+ * funil disparava 1.273 consultas ao abrir e a cada volta para a janela
+ * (auditoria de 29/10, "o CRM trava").
+ */
+export function usePassosFeitos(ativo = true) {
+  return useQuery({
+    queryKey: ['lead_steps', 'feitos'],
+    enabled: ativo,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const feitos = new Map<string, number>();
+      // O servidor devolve no máximo 1.000 linhas por vez.
+      for (let de = 0; ; de += 1000) {
+        const { data, error } = await supabase
+          .from('lead_steps')
+          .select('lead_id')
+          .eq('done', true)
+          .order('id')
+          .range(de, de + 999);
+        if (error) throw error;
+        for (const r of (data ?? []) as { lead_id: string }[]) feitos.set(r.lead_id, (feitos.get(r.lead_id) ?? 0) + 1);
+        if (!data || data.length < 1000) return feitos;
+      }
+    },
+  });
+}
+
 export function useUpsertLeadStep() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -74,6 +103,7 @@ export function useUpsertLeadStep() {
     },
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['lead_steps', vars.leadId] });
+      queryClient.invalidateQueries({ queryKey: ['lead_steps', 'feitos'] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
     },
     onError: (error: Error) => {

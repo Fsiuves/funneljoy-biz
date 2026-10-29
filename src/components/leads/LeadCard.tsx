@@ -5,7 +5,7 @@ import { Phone, Mail, Building2, Calendar, CalendarPlus } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ScheduleFollowUpModal } from '@/components/activities/ScheduleFollowUpModal';
-import { useLeadSteps } from '@/hooks/useLeadSteps';
+import { usePassosFeitos } from '@/hooks/useLeadSteps';
 
 interface LeadCardProps {
   lead: Lead;
@@ -17,9 +17,9 @@ const TOTAL_STEPS = 7;
 export function LeadCard({ lead, onClick }: LeadCardProps) {
   const mostrarSequencia = useConfig().config.funil?.sequencia !== false;
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
-  const { data: steps = [] } = useLeadSteps(lead.id);
+  const { data: feitos } = usePassosFeitos(mostrarSequencia);
 
-  const doneCount = steps.filter(s => s.done).length;
+  const doneCount = feitos?.get(lead.id) ?? 0;
   const progress = Math.round((doneCount / TOTAL_STEPS) * 100);
 
   const getSourceLabel = (source: string) => {

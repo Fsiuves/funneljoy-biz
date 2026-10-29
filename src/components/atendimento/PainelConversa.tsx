@@ -525,7 +525,7 @@ interface PainelConversaProps {
 export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
   const navigate = useNavigate();
   const atualizar = useAtualizarConversa();
-  const { data: mensagens = [], isLoading } = useMensagens(conversa);
+  const { data: mensagens = [], isLoading, isError, isFetching, refetch } = useMensagens(conversa);
   const fim = useRef<HTMLDivElement>(null);
 
   const nomes = useMemo(() => new Map(equipe.map((p) => [p.id, p.name || p.email])), [equipe]);
@@ -790,7 +790,16 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
             <Loader2 className="w-6 h-6 animate-spin text-primary" />
           </div>
         )}
-        {!isLoading && mensagens.length === 0 && (
+        {/* Erro não é conversa vazia: antes a falha de conexão aparecia como "Sem mensagens". */}
+        {!isLoading && isError && mensagens.length === 0 && (
+          <div className="flex flex-col items-center gap-3 py-10 text-sm text-muted-foreground">
+            <p>Não foi possível carregar as mensagens.</p>
+            <Button size="sm" variant="outline" disabled={isFetching} onClick={() => void refetch()}>
+              {isFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Tentar de novo'}
+            </Button>
+          </div>
+        )}
+        {!isLoading && !isError && mensagens.length === 0 && (
           <p className="text-center text-sm text-muted-foreground py-10">Sem mensagens nesta conversa.</p>
         )}
         {mensagens.map((m) => {

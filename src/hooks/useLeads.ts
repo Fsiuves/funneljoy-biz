@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { minhaEmpresaId } from '@/lib/minhaEmpresa';
+import { buscarTudo } from '@/lib/buscarTudo';
 import { Lead, LeadSource, LeadStage } from '@/types/crm';
 import { toast } from '@/hooks/use-toast';
 import { useVocabulario } from '@/hooks/useEmpresa';
@@ -54,17 +55,17 @@ export function useLeads() {
   return useQuery({
     queryKey: ['leads'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const data = await buscarTudo<LeadRow>((de, ate) => supabase
         .from('leads')
         .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      const leads = (data as LeadRow[]).map(mapLeadFromDb);
+        .order('created_at', { ascending: false })
+        .order('id')
+        .range(de, ate) as unknown as PromiseLike<{ data: LeadRow[] | null; error: unknown }>);
+      const leads = data.map(mapLeadFromDb);
 
       // Fetch profile names for created_by and assigned_to
       const userIds = new Set<string>();
-      data?.forEach((row: LeadRow) => {
+      data.forEach((row: LeadRow) => {
         if (row.created_by) userIds.add(row.created_by);
         if (row.assigned_to) userIds.add(row.assigned_to);
       });
@@ -80,7 +81,7 @@ export function useLeads() {
         );
 
         leads.forEach((lead, i) => {
-          const row = data![i] as LeadRow;
+          const row = data[i];
           lead.createdByName = profileMap.get(row.created_by) || undefined;
           lead.assignedToName = row.assigned_to ? profileMap.get(row.assigned_to) || undefined : undefined;
         });
