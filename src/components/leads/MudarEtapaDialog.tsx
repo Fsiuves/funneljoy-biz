@@ -11,7 +11,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
-import { useEtapas } from '@/hooks/useEmpresa';
+import { useConfig, useEtapas } from '@/hooks/useEmpresa';
 import {
   FORMAS, FORMA_DA_ETAPA, ROTULO_TIPO, TIPO_DA_ETAPA, lerValor, pedeData, pedeValor, useMudarEtapa, useUnidadesDaEmpresa,
 } from '@/hooks/useAgenda';
@@ -27,7 +27,7 @@ interface MudarEtapaDialogProps {
 const AVISO: Record<string, string> = {
   compareceu: 'Fica registrado na Agenda que o paciente veio.',
   faltou: 'Fica registrado na Agenda que o paciente faltou.',
-  nao_fechou: 'Volta no Follow-up em 30 dias para um novo contato.',
+  totalpass: 'Segue o tratamento pelo TotalPass; a clínica recebe o repasse por visita.',
 };
 
 /**
@@ -37,6 +37,7 @@ const AVISO: Record<string, string> = {
 export function MudarEtapaDialog({ lead, etapa: etapaInicial, onClose }: MudarEtapaDialogProps) {
   const { etapas, rotulo } = useEtapas();
   const mudar = useMudarEtapa();
+  const dias = useConfig().config.funil?.dias_novo_contato ?? 30;
   const { data: unidades = [] } = useUnidadesDaEmpresa();
   const [etapa, setEtapa] = useState('');
   // Onde é a avaliação; em outra unidade, o paciente passa para ela.
@@ -165,6 +166,9 @@ export function MudarEtapaDialog({ lead, etapa: etapaInicial, onClose }: MudarEt
           )}
 
           {AVISO[etapa] && <p className="text-sm text-muted-foreground">{AVISO[etapa]}</p>}
+          {etapa === 'nao_fechou' && (
+            <p className="text-sm text-muted-foreground">Volta no Follow-up em {dias} dias para um novo contato.</p>
+          )}
         </div>
 
         <DialogFooter>

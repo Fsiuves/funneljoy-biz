@@ -48,6 +48,8 @@ interface ConfigEmpresa {
   funil?: {
     /** false esconde a sequência de contato (0/7) da Dom nos cards. */
     sequencia?: boolean;
+    /** Dias até o novo contato com quem não fechou plano (30 se não definido). */
+    dias_novo_contato?: number;
   };
   /** Campos do cadastro de vendas que a empresa não usa: false esconde. */
   formulario?: {

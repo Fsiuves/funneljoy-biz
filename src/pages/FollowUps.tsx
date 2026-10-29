@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useModulosAtivos } from '@/hooks/useAtendimento';
-import { useVocabulario } from '@/hooks/useEmpresa';
+import { useConfig, useVocabulario } from '@/hooks/useEmpresa';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
@@ -46,6 +46,7 @@ export default function FollowUps() {
   const { data: activities = [], isLoading: activitiesLoading } = useActivities();
   const updateLead = useUpdateLead();
   const v = useVocabulario();
+  const diasNovoContato = useConfig().config.funil?.dias_novo_contato ?? 30;
   const createActivity = useCreateActivity();
   const leadsWithFollowUp = leads.filter(lead => lead.nextFollowUp);
   const { data: modulos } = useModulosAtivos();
@@ -156,9 +157,9 @@ export default function FollowUps() {
       });
       
       // Quem não fechou plano volta de tempos em tempos: concluir já marca o
-      // próximo contato para daqui a 30 dias (pedido da clínica, 29/10).
+      // próximo contato (config.funil.dias_novo_contato; pedido da clínica, 29/10).
       if (lead.stage === 'nao_fechou') {
-        const proximo = addDays(new Date(), 30);
+        const proximo = addDays(new Date(), diasNovoContato);
         proximo.setHours(10, 0, 0, 0);
         await updateLead.mutateAsync({ id: lead.id, nextFollowUp: proximo });
         toast({ title: 'Follow-up concluído!', description: `Próximo contato com ${lead.name} em ${format(proximo, 'dd/MM')}.` });

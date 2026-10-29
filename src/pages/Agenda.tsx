@@ -12,7 +12,7 @@ import {
 import { CalendarDays, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useEquipe } from '@/hooks/useAtendimento';
-import { useEtapas } from '@/hooks/useEmpresa';
+import { useConfig, useEtapas } from '@/hooks/useEmpresa';
 import { formatarTelefone } from '@/components/atendimento/PainelConversa';
 import {
   FORMAS, ROTULO_TIPO, lerValor, reais, useAgendarAvaliacao, useAvaliacoes, useRegistrarFechamento, useRegistrarPresenca,
@@ -193,6 +193,7 @@ function Linha({ a, mostrarUnidade, comRetorno, temEtapa }: {
   const presenca = useRegistrarPresenca();
   const fechamento = useRegistrarFechamento();
   const agendar = useAgendarAvaliacao();
+  const dias = useConfig().config.funil?.dias_novo_contato ?? 30;
   const [forma, setForma] = useState<FormaFechamento | null>(null);
   const [corrigindo, setCorrigindo] = useState(false);
   const [valor, setValor] = useState('');
@@ -220,10 +221,9 @@ function Linha({ a, mostrarUnidade, comRetorno, temEtapa }: {
     setCorrigindo(false);
     presenca.mutate({ id: a.id, compareceu }, { onError: erro });
   };
-  const fechar = (fechou: boolean) => {
-    const f = forma ?? 'plano';
+  const fechar = (fechou: boolean, f: FormaFechamento = forma ?? 'plano') => {
     const v = fechou ? lerValor(valor) : null;
-    if (fechou && !v) {
+    if (fechou && !v && !FORMAS[f].semValor) {
       toast.error(`Informe o ${FORMAS[f].valor.toLowerCase()}`);
       return;
     }
@@ -237,8 +237,8 @@ function Linha({ a, mostrarUnidade, comRetorno, temEtapa }: {
           setForma(null);
           setCorrigindo(false);
           setValor('');
-          if (fechou) toast.success(`${FORMAS[f].rotulo}: ${nome}, ${reais(v!)}`);
-          else if (temEtapa('nao_fechou')) toast.success(`${nome} volta no Follow-up em 30 dias para um novo contato`);
+          if (fechou) toast.success(`${FORMAS[f].rotulo}: ${nome}${v ? `, ${reais(v)}` : ''}`);
+          else if (temEtapa('nao_fechou')) toast.success(`${nome} volta no Follow-up em ${dias} dias para um novo contato`);
         },
         onError: erro,
       },
@@ -271,7 +271,10 @@ function Linha({ a, mostrarUnidade, comRetorno, temEtapa }: {
   const situacao =
     a.status === 'agendada' ? { texto: 'Aguardando', cor: 'bg-muted text-muted-foreground' }
     : a.status === 'faltou' ? { texto: 'Faltou', cor: 'bg-red-100 text-red-700' }
-    : a.fechou_plano === true ? { texto: `${FORMAS[a.forma_fechamento ?? 'plano'].rotulo} · ${reais(Number(a.valor_plano ?? 0))}`, cor: 'bg-green-100 text-green-800' }
+    : a.fechou_plano === true ? {
+      texto: `${FORMAS[a.forma_fechamento ?? 'plano'].rotulo}${a.valor_plano ? ` · ${reais(Number(a.valor_plano))}` : ''}`,
+      cor: 'bg-green-100 text-green-800',
+    }
     : a.fechou_plano === false ? { texto: temEtapa('nao_fechou') ? 'Não fechou plano' : 'Compareceu, não fechou', cor: 'bg-amber-100 text-amber-800' }
     : proximoMarcado ? { texto: `Compareceu · ${ROTULO_TIPO[proximo]} marcado`, cor: 'bg-primary/10 text-primary' }
     : { texto: 'Compareceu', cor: 'bg-primary/10 text-primary' };
@@ -308,7 +311,9 @@ function Linha({ a, mostrarUnidade, comRetorno, temEtapa }: {
         {aberto && !emEdicao && (
           <>
             {fechaAqui && formas.map((f) => (
-              <Button key={f} size="sm" disabled={ocupado} onClick={() => setForma(f)}>{FORMAS[f].rotulo}</Button>
+              <Button key={f} size="sm" disabled={ocupado} onClick={() => (FORMAS[f].semValor ? fechar(true, f) : setForma(f))}>
+                {FORMAS[f].rotulo}
+              </Button>
             ))}
             {fechaAqui && (
               <Button size="sm" variant="outline" disabled={ocupado} onClick={() => fechar(false)}>

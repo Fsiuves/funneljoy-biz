@@ -132,7 +132,7 @@ export default function Planos() {
                     .filter(Boolean).join(' · ') || '-'}
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums">{p.sessoes ?? '-'}</td>
-                <td className="px-3 py-3 text-right tabular-nums font-medium">{reais(Number(p.valor_plano ?? 0))}</td>
+                <td className="px-3 py-3 text-right tabular-nums font-medium">{p.valor_plano == null ? '-' : reais(Number(p.valor_plano))}</td>
                 <td className="px-3 py-3">{p.fechamento_em ? format(new Date(p.fechamento_em), 'dd/MM/yyyy') : '-'}</td>
                 <td className="px-3 py-3 text-muted-foreground">{(p.fechamento_por && nomes.get(p.fechamento_por)) || 'Equipe'}</td>
                 <td className="px-3 py-3 text-right">

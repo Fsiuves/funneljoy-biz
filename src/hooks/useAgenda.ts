@@ -7,14 +7,19 @@ const crm = supabase as any;
 export type StatusAvaliacao = 'agendada' | 'compareceu' | 'faltou' | 'cancelada';
 /** Avaliação (R1) e os retornos R2 e R3: na clínica o fechamento sai no R2 ou no R3. */
 export type TipoHorario = 'avaliacao' | 'r2' | 'r3';
-/** Como o paciente segue: plano fechado, mensalidade ou pagamento por sessão. */
-export type FormaFechamento = 'plano' | 'mes_a_mes' | 'avulso';
+/**
+ * Como o paciente segue: plano fechado, mensalidade, pagamento por sessão ou
+ * pelo TotalPass (benefício da empresa dele; a clínica recebe o repasse por visita).
+ */
+export type FormaFechamento = 'plano' | 'mes_a_mes' | 'avulso' | 'totalpass';
 
 export const ROTULO_TIPO: Record<TipoHorario, string> = { avaliacao: 'Avaliação', r2: 'R2', r3: 'R3' };
-export const FORMAS: Record<FormaFechamento, { rotulo: string; valor: string }> = {
+/** semValor: registra direto, sem pedir valor (o TotalPass paga por visita). */
+export const FORMAS: Record<FormaFechamento, { rotulo: string; valor: string; semValor?: boolean }> = {
   plano: { rotulo: 'Fechou plano', valor: 'Valor do plano' },
   mes_a_mes: { rotulo: 'Mês a mês', valor: 'Valor da mensalidade' },
   avulso: { rotulo: 'Avulso', valor: 'Valor da sessão' },
+  totalpass: { rotulo: 'Segue pelo TotalPass', valor: 'Valor do repasse', semValor: true },
 };
 
 export interface Avaliacao {
@@ -175,9 +180,12 @@ export const useMudarEtapa = () =>
 /** Etapas que marcam horário na Agenda (pedem dia e hora), com o tipo do horário. */
 export const TIPO_DA_ETAPA: Record<string, TipoHorario> = { agendou: 'avaliacao', agendou_r2: 'r2', agendou_r3: 'r3' };
 /** Etapas de fechamento (pedem o valor), com a forma gravada na Agenda. */
-export const FORMA_DA_ETAPA: Record<string, FormaFechamento> = { fechou_plano: 'plano', mes_a_mes: 'mes_a_mes', avulso: 'avulso' };
+export const FORMA_DA_ETAPA: Record<string, FormaFechamento> = {
+  fechou_plano: 'plano', mes_a_mes: 'mes_a_mes', avulso: 'avulso', totalpass: 'totalpass',
+};
 export const pedeData = (etapa: string) => Object.prototype.hasOwnProperty.call(TIPO_DA_ETAPA, etapa);
-export const pedeValor = (etapa: string) => Object.prototype.hasOwnProperty.call(FORMA_DA_ETAPA, etapa);
+export const pedeValor = (etapa: string) =>
+  Object.prototype.hasOwnProperty.call(FORMA_DA_ETAPA, etapa) && !FORMAS[FORMA_DA_ETAPA[etapa]].semValor;
 
 export const reais = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
