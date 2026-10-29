@@ -6,7 +6,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { LEAD_STAGES } from '@/types/crm';
+import { LEAD_SOURCES, LEAD_STAGES } from '@/types/crm';
 import { useAuth } from './useAuth';
 
 const crm = supabase as any;
@@ -53,6 +53,8 @@ interface ConfigEmpresa {
   formulario?: {
     empresa?: boolean;
     valor?: boolean;
+    /** Origens a mais no cadastro do paciente, como "totalpass". */
+    origens?: string[];
   };
   /** PDF do guia do CRM, aberto pelo menu. */
   guia_url?: string;
@@ -96,6 +98,12 @@ function useConfigEmpresa() {
 export function useConfig() {
   const { data, isLoading } = useConfigEmpresa();
   return { config: data?.config ?? ({} as ConfigEmpresa), carregando: isLoading };
+}
+
+/** As origens do cadastro: as de sempre e as que a empresa liga (TotalPass na clínica). */
+export function useOrigens() {
+  const extras = useConfig().config.formulario?.origens ?? [];
+  return LEAD_SOURCES.filter((s) => !s.extra || extras.includes(s.value));
 }
 
 export function useEtapas() {

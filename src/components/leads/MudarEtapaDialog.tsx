@@ -12,7 +12,9 @@ import {
 } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
 import { useEtapas } from '@/hooks/useEmpresa';
-import { ETAPA_PEDE_DATA, ETAPA_PEDE_VALOR, lerValor, useMudarEtapa, useUnidadesDaEmpresa } from '@/hooks/useAgenda';
+import {
+  FORMAS, FORMA_DA_ETAPA, ROTULO_TIPO, TIPO_DA_ETAPA, lerValor, pedeData, pedeValor, useMudarEtapa, useUnidadesDaEmpresa,
+} from '@/hooks/useAgenda';
 
 interface MudarEtapaDialogProps {
   /** O paciente; nulo fecha a janela. */
@@ -25,6 +27,7 @@ interface MudarEtapaDialogProps {
 const AVISO: Record<string, string> = {
   compareceu: 'Fica registrado na Agenda que o paciente veio.',
   faltou: 'Fica registrado na Agenda que o paciente faltou.',
+  nao_fechou: 'Volta no Follow-up em 30 dias para um novo contato.',
 };
 
 /**
@@ -55,23 +58,23 @@ export function MudarEtapaDialog({ lead, etapa: etapaInicial, onClose }: MudarEt
     setUnidade(lead.unidade ?? '');
   }, [lead?.id, etapaInicial]);
 
-  const mudaUnidade = etapa === ETAPA_PEDE_DATA && !!unidade && !!lead?.unidade && unidade !== lead.unidade;
+  const mudaUnidade = pedeData(etapa) && !!unidade && !!lead?.unidade && unidade !== lead.unidade;
 
   const salvar = () => {
     if (!lead || !etapa) return;
     let quando: Date | null = null;
     let v: number | null = null;
-    if (etapa === ETAPA_PEDE_DATA) {
+    if (pedeData(etapa)) {
       if (!dia || !hora) {
         toast.error('Escolha o dia e a hora');
         return;
       }
       quando = new Date(`${dia}T${hora}`);
     }
-    if (etapa === ETAPA_PEDE_VALOR) {
+    if (pedeValor(etapa)) {
       v = lerValor(valor);
       if (!v) {
-        toast.error('Informe o valor do plano');
+        toast.error(`Informe o ${FORMAS[FORMA_DA_ETAPA[etapa]].valor.toLowerCase()}`);
         return;
       }
     }
@@ -80,7 +83,7 @@ export function MudarEtapaDialog({ lead, etapa: etapaInicial, onClose }: MudarEt
       {
         leadId: lead.id, etapa, quando, valor: v,
         plano: plano.trim() || null, sessoes: Number.isInteger(n) && n > 0 ? n : null,
-        unidade: etapa === ETAPA_PEDE_DATA ? unidade || null : null,
+        unidade: pedeData(etapa) ? unidade || null : null,
       },
       {
         onSuccess: () => {
@@ -115,9 +118,9 @@ export function MudarEtapaDialog({ lead, etapa: etapaInicial, onClose }: MudarEt
             </div>
           )}
 
-          {etapa === ETAPA_PEDE_DATA && (
+          {pedeData(etapa) && (
             <div className="space-y-1.5">
-              <Label>Dia e hora da avaliação</Label>
+              <Label>Dia e hora {TIPO_DA_ETAPA[etapa] === 'avaliacao' ? 'da avaliação' : `do ${ROTULO_TIPO[TIPO_DA_ETAPA[etapa]]}`}</Label>
               <div className="flex gap-2">
                 <Input type="date" value={dia} onChange={(e) => setDia(e.target.value)} />
                 <Input type="time" value={hora} step={300} onChange={(e) => setHora(e.target.value)} />
@@ -140,12 +143,13 @@ export function MudarEtapaDialog({ lead, etapa: etapaInicial, onClose }: MudarEt
             </div>
           )}
 
-          {etapa === ETAPA_PEDE_VALOR && (
+          {pedeValor(etapa) && (
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label>Valor do plano</Label>
+                <Label>{FORMAS[FORMA_DA_ETAPA[etapa]].valor}</Label>
                 <Input inputMode="decimal" placeholder="Ex.: 1.500,00" value={valor} onChange={(e) => setValor(e.target.value)} />
               </div>
+              {FORMA_DA_ETAPA[etapa] === 'plano' && (
               <div className="grid grid-cols-[1fr_7rem] gap-2">
                 <div className="space-y-1.5">
                   <Label>Plano <span className="text-muted-foreground font-normal">(opcional)</span></Label>
@@ -156,6 +160,7 @@ export function MudarEtapaDialog({ lead, etapa: etapaInicial, onClose }: MudarEt
                   <Input type="number" min={1} value={sessoes} onChange={(e) => setSessoes(e.target.value)} />
                 </div>
               </div>
+              )}
             </div>
           )}
 

@@ -11,7 +11,7 @@ import {
 import { Loader2, MessageCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useEquipe } from '@/hooks/useAtendimento';
-import { reais, usePlanos, type PlanoFechado } from '@/hooks/useAgenda';
+import { FORMAS, reais, usePlanos, type PlanoFechado } from '@/hooks/useAgenda';
 import { formatarTelefone } from '@/components/atendimento/PainelConversa';
 
 type Periodo = 'mes' | 'mes_passado' | '30d' | 'tudo';
@@ -127,7 +127,10 @@ export default function Planos() {
                   <p className="text-xs text-muted-foreground">{formatarTelefone(p.leads?.phone ?? '')}</p>
                 </td>
                 <td className="px-3 py-3">{p.unidade ?? '-'}</td>
-                <td className="px-3 py-3">{p.plano ?? '-'}</td>
+                <td className="px-3 py-3">
+                  {[p.forma_fechamento && p.forma_fechamento !== 'plano' ? FORMAS[p.forma_fechamento].rotulo : null, p.plano]
+                    .filter(Boolean).join(' · ') || '-'}
+                </td>
                 <td className="px-3 py-3 text-right tabular-nums">{p.sessoes ?? '-'}</td>
                 <td className="px-3 py-3 text-right tabular-nums font-medium">{reais(Number(p.valor_plano ?? 0))}</td>
                 <td className="px-3 py-3">{p.fechamento_em ? format(new Date(p.fechamento_em), 'dd/MM/yyyy') : '-'}</td>

@@ -5,6 +5,17 @@ import { supabase } from '@/integrations/supabase/client';
 const crm = supabase as any;
 
 export type StatusAvaliacao = 'agendada' | 'compareceu' | 'faltou' | 'cancelada';
+/** Avaliação (R1) e os retornos R2 e R3: na clínica o fechamento sai no R2 ou no R3. */
+export type TipoHorario = 'avaliacao' | 'r2' | 'r3';
+/** Como o paciente segue: plano fechado, mensalidade ou pagamento por sessão. */
+export type FormaFechamento = 'plano' | 'mes_a_mes' | 'avulso';
+
+export const ROTULO_TIPO: Record<TipoHorario, string> = { avaliacao: 'Avaliação', r2: 'R2', r3: 'R3' };
+export const FORMAS: Record<FormaFechamento, { rotulo: string; valor: string }> = {
+  plano: { rotulo: 'Fechou plano', valor: 'Valor do plano' },
+  mes_a_mes: { rotulo: 'Mês a mês', valor: 'Valor da mensalidade' },
+  avulso: { rotulo: 'Avulso', valor: 'Valor da sessão' },
+};
 
 export interface Avaliacao {
   id: string;
@@ -15,10 +26,14 @@ export interface Avaliacao {
   fechou_plano: boolean | null;
   valor_plano: number | null;
   agendada_em: string;
-  leads?: { name: string | null; phone: string | null } | null;
+  tipo: TipoHorario;
+  forma_fechamento: FormaFechamento | null;
+  /** Com os horários do paciente, para saber se ele já marcou o R2 ou o R3. */
+  leads?: { name: string | null; phone: string | null; avaliacoes?: { tipo: TipoHorario; status: StatusAvaliacao }[] } | null;
 }
 
-const CAMPOS = 'id, lead_id, unidade, marcada_para, status, fechou_plano, valor_plano, agendada_em, leads(name, phone)';
+const CAMPOS = 'id, lead_id, unidade, marcada_para, status, fechou_plano, valor_plano, agendada_em, tipo, forma_fechamento, '
+  + 'leads(name, phone, avaliacoes(tipo, status))';
 
 /** Avaliações com dia marcado de "de" até antes de "ate", sem as canceladas. */
 export function useAvaliacoes(de: Date, ate: Date) {
@@ -47,14 +62,14 @@ export function useAvaliacaoAberta(leadId: string | null | undefined) {
     queryFn: async () => {
       const { data, error } = await crm
         .from('avaliacoes')
-        .select('id, marcada_para, unidade')
+        .select('id, marcada_para, unidade, tipo')
         .eq('lead_id', leadId)
         .eq('status', 'agendada')
         .order('marcada_para', { ascending: false })
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      return (data ?? null) as { id: string; marcada_para: string; unidade: string | null } | null;
+      return (data ?? null) as { id: string; marcada_para: string; unidade: string | null; tipo: TipoHorario } | null;
     },
   });
 }
@@ -68,6 +83,8 @@ const ERROS: Record<string, string> = {
   data_invalida: 'Escolha o dia e a hora',
   etapa_invalida: 'Essa etapa não existe no funil',
   unidade_invalida: 'Essa unidade não existe',
+  tipo_invalido: 'Tipo de horário inválido',
+  forma_invalida: 'Forma de fechamento inválida',
 };
 
 async function chamar(fn: string, args: Record<string, unknown>) {
@@ -95,8 +112,10 @@ function useRegistro<T>(fn: (v: T) => Promise<unknown>) {
  * (crm.agendar_avaliacao), para a recepção de lá ver na Agenda e marcar presença.
  */
 export const useAgendarAvaliacao = () =>
-  useRegistro(({ leadId, quando, unidade }: { leadId: string; quando: Date; unidade?: string | null }) =>
-    chamar('agendar_avaliacao', { _lead_id: leadId, _quando: quando.toISOString(), _unidade: unidade || null }));
+  useRegistro(({ leadId, quando, unidade, tipo }: { leadId: string; quando: Date; unidade?: string | null; tipo?: TipoHorario }) =>
+    chamar('agendar_avaliacao', {
+      _lead_id: leadId, _quando: quando.toISOString(), _unidade: unidade || null, _tipo: tipo ?? 'avaliacao',
+    }));
 
 /** As unidades da empresa, para escolher onde é a avaliação (crm.unidades_da_empresa). */
 export function useUnidadesDaEmpresa() {
@@ -129,11 +148,13 @@ export const useRegistrarPresenca = () =>
     chamar('registrar_presenca', { _avaliacao_id: id, _compareceu: compareceu }));
 
 export const useRegistrarFechamento = () =>
-  useRegistro(({ id, fechou, valor, plano, sessoes }: {
+  useRegistro(({ id, fechou, valor, plano, sessoes, forma }: {
     id: string; fechou: boolean; valor?: number | null; plano?: string | null; sessoes?: number | null;
+    forma?: FormaFechamento | null;
   }) =>
     chamar('registrar_fechamento', {
       _avaliacao_id: id, _fechou: fechou, _valor: valor ?? null, _plano: plano ?? null, _sessoes: sessoes ?? null,
+      _forma: fechou ? forma ?? 'plano' : null,
     }));
 
 /**
@@ -151,9 +172,12 @@ export const useMudarEtapa = () =>
       _valor: valor ?? null, _plano: plano ?? null, _sessoes: sessoes ?? null, _unidade: unidade || null,
     }));
 
-/** Etapas que pedem algo antes de mudar. */
-export const ETAPA_PEDE_DATA = 'agendou';
-export const ETAPA_PEDE_VALOR = 'fechou_plano';
+/** Etapas que marcam horário na Agenda (pedem dia e hora), com o tipo do horário. */
+export const TIPO_DA_ETAPA: Record<string, TipoHorario> = { agendou: 'avaliacao', agendou_r2: 'r2', agendou_r3: 'r3' };
+/** Etapas de fechamento (pedem o valor), com a forma gravada na Agenda. */
+export const FORMA_DA_ETAPA: Record<string, FormaFechamento> = { fechou_plano: 'plano', mes_a_mes: 'mes_a_mes', avulso: 'avulso' };
+export const pedeData = (etapa: string) => Object.prototype.hasOwnProperty.call(TIPO_DA_ETAPA, etapa);
+export const pedeValor = (etapa: string) => Object.prototype.hasOwnProperty.call(FORMA_DA_ETAPA, etapa);
 
 export const reais = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -173,17 +197,18 @@ export interface PlanoFechado {
   sessoes: number | null;
   fechamento_em: string | null;
   fechamento_por: string | null;
+  forma_fechamento: FormaFechamento | null;
   leads?: { name: string | null; phone: string | null } | null;
 }
 
-/** Quem fechou plano, do mais recente para o mais antigo (aba Planos). */
+/** Quem fechou (plano, mês a mês ou avulso), do mais recente para o mais antigo (aba Planos). */
 export function usePlanos() {
   return useQuery({
     queryKey: ['avaliacoes', 'planos'],
     queryFn: async () => {
       const { data, error } = await crm
         .from('avaliacoes')
-        .select('id, lead_id, unidade, valor_plano, plano, sessoes, fechamento_em, fechamento_por, leads(name, phone)')
+        .select('id, lead_id, unidade, valor_plano, plano, sessoes, fechamento_em, fechamento_por, forma_fechamento, leads(name, phone)')
         .eq('fechou_plano', true)
         .neq('status', 'cancelada')
         .order('fechamento_em', { ascending: false });

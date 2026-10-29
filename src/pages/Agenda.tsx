@@ -12,23 +12,35 @@ import {
 import { CalendarDays, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useEquipe } from '@/hooks/useAtendimento';
+import { useEtapas } from '@/hooks/useEmpresa';
 import { formatarTelefone } from '@/components/atendimento/PainelConversa';
 import {
-  lerValor, reais, useAvaliacoes, useRegistrarFechamento, useRegistrarPresenca, type Avaliacao,
+  FORMAS, ROTULO_TIPO, lerValor, reais, useAgendarAvaliacao, useAvaliacoes, useRegistrarFechamento, useRegistrarPresenca,
+  type Avaliacao, type FormaFechamento, type TipoHorario,
 } from '@/hooks/useAgenda';
 
 type Periodo = 'dia' | 'semana' | 'mes';
 const TODAS = '__todas__';
 const maiuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
+/** O paciente desta linha já tem esse horário marcado (a Agenda traz os horários dele). */
+const marcou = (a: Avaliacao, tipo: TipoHorario) =>
+  !!a.leads?.avaliacoes?.some((x) => x.tipo === tipo && x.status !== 'cancelada');
+
 /**
  * Avaliações do dia. A recepção marca a chegada (compareceu ou faltou) e, na
  * saída, quando o paciente vem faturar, se fechou plano e o valor. O
  * quiropraxista não precisa de computador.
+ *
+ * Empresa com R2 no funil (Coluna Ajustada): a avaliação termina marcando o R2,
+ * e o fechamento (plano, mês a mês ou avulso) sai no R2 ou no R3.
  */
 export default function Agenda() {
   const { user } = useAuth();
   const { data: equipe = [] } = useEquipe();
+  const { etapas } = useEtapas();
+  const temEtapa = (chave: string) => etapas.some((e) => e.value === chave);
+  const comRetorno = temEtapa('agendou_r2');
   const eu = equipe.find((p) => p.id === user?.id);
   const [dia, setDia] = useState(() => startOfDay(new Date()));
   const [periodo, setPeriodo] = useState<Periodo>('dia');
@@ -54,18 +66,25 @@ export default function Agenda() {
   const naUnidade = (a: Avaliacao) => unidade === TODAS || a.unidade === unidade;
   const lista = doDia.filter(naUnidade);
 
+  // Comparecimento e retorno contam a avaliação; fechamento conta de qualquer
+  // horário, que na clínica ele sai no R2 ou no R3.
   const numeros = useMemo(() => {
     const p = doPeriodo.filter(naUnidade);
-    const compareceram = p.filter((a) => a.status === 'compareceu').length;
-    const faltaram = p.filter((a) => a.status === 'faltou').length;
+    const av = p.filter((a) => a.tipo === 'avaliacao');
+    const vieram = av.filter((a) => a.status === 'compareceu');
+    const compareceram = vieram.length;
+    const faltaram = av.filter((a) => a.status === 'faltou').length;
+    const marcaramR2 = vieram.filter((a) => marcou(a, 'r2')).length;
     const fechadas = p.filter((a) => a.fechou_plano);
     return {
-      avaliacoes: p.length,
+      avaliacoes: av.length,
       compareceram,
       faltaram,
+      marcaramR2,
       fecharam: fechadas.length,
       valor: fechadas.reduce((s, a) => s + Number(a.valor_plano ?? 0), 0),
       taxaComparecimento: compareceram + faltaram ? Math.round((compareceram / (compareceram + faltaram)) * 100) : null,
+      taxaR2: compareceram ? Math.round((marcaramR2 / compareceram) * 100) : null,
       taxaFechamento: compareceram ? Math.round((fechadas.length / compareceram) * 100) : null,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -78,7 +97,12 @@ export default function Agenda() {
 
   return (
     <MainLayout>
-      <Header title="Agenda" subtitle="Avaliações do dia: a recepção marca a chegada e, na saída, se fechou plano" />
+      <Header
+        title="Agenda"
+        subtitle={comRetorno
+          ? 'Avaliação, R2 e R3: a recepção marca a chegada e, na saída, o retorno ou o fechamento'
+          : 'Avaliações do dia: a recepção marca a chegada e, na saída, se fechou plano'}
+      />
 
       <div className="flex flex-wrap items-center gap-3 mb-5">
         <div className="flex items-center gap-1">
@@ -123,11 +147,14 @@ export default function Agenda() {
             ))}
           </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className={`grid grid-cols-2 gap-3 ${comRetorno ? 'md:grid-cols-3 xl:grid-cols-6' : 'md:grid-cols-5'}`}>
           <Numero rotulo="Avaliações" valor={numeros.avaliacoes} />
           <Numero rotulo="Compareceram" valor={numeros.compareceram} extra={numeros.taxaComparecimento !== null ? `${numeros.taxaComparecimento}% de quem tinha horário` : undefined} />
           <Numero rotulo="Faltaram" valor={numeros.faltaram} />
-          <Numero rotulo="Fecharam plano" valor={numeros.fecharam} extra={numeros.taxaFechamento !== null ? `${numeros.taxaFechamento}% de quem compareceu` : undefined} />
+          {comRetorno && (
+            <Numero rotulo="Marcaram R2" valor={numeros.marcaramR2} extra={numeros.taxaR2 !== null ? `${numeros.taxaR2}% de quem compareceu` : undefined} />
+          )}
+          <Numero rotulo={comRetorno ? 'Fecharam' : 'Fecharam plano'} valor={numeros.fecharam} extra={numeros.taxaFechamento !== null ? `${numeros.taxaFechamento}% de quem compareceu` : undefined} />
           <Numero rotulo="Valor fechado" valor={reais(numeros.valor)} />
         </div>
       </div>
@@ -139,10 +166,12 @@ export default function Agenda() {
         )}
         {!isLoading && lista.length === 0 && (
           <p className="px-6 py-10 text-center text-sm text-muted-foreground">
-            Nenhuma avaliação neste dia. Para marcar, abra a conversa do paciente no Atendimento e use o calendário no topo.
+            Nenhum horário neste dia. Para marcar uma avaliação, abra a conversa do paciente no Atendimento e use o calendário no topo.
           </p>
         )}
-        {lista.map((a) => <Linha key={a.id} a={a} mostrarUnidade={unidades.length > 1} />)}
+        {lista.map((a) => (
+          <Linha key={a.id} a={a} mostrarUnidade={unidades.length > 1} comRetorno={comRetorno} temEtapa={temEtapa} />
+        ))}
       </div>
     </MainLayout>
   );
@@ -158,36 +187,81 @@ function Numero({ rotulo, valor, extra }: { rotulo: string; valor: number | stri
   );
 }
 
-function Linha({ a, mostrarUnidade }: { a: Avaliacao; mostrarUnidade: boolean }) {
+function Linha({ a, mostrarUnidade, comRetorno, temEtapa }: {
+  a: Avaliacao; mostrarUnidade: boolean; comRetorno: boolean; temEtapa: (chave: string) => boolean;
+}) {
   const presenca = useRegistrarPresenca();
   const fechamento = useRegistrarFechamento();
-  const [pedindoValor, setPedindoValor] = useState(false);
+  const agendar = useAgendarAvaliacao();
+  const [forma, setForma] = useState<FormaFechamento | null>(null);
   const [corrigindo, setCorrigindo] = useState(false);
   const [valor, setValor] = useState('');
   const [plano, setPlano] = useState('');
   const [sessoes, setSessoes] = useState('');
-  const ocupado = presenca.isPending || fechamento.isPending;
+  const [marcando, setMarcando] = useState(false);
+  const [diaR, setDiaR] = useState('');
+  const [horaR, setHoraR] = useState('');
+  const ocupado = presenca.isPending || fechamento.isPending || agendar.isPending;
   const erro = (e: Error) => toast.error(e.message);
   const nome = a.leads?.name || formatarTelefone(a.leads?.phone ?? '');
+
+  // Da avaliação sai o R2; do R2, o R3.
+  const proximo: TipoHorario | null = !comRetorno ? null
+    : a.tipo === 'avaliacao' ? 'r2'
+    : a.tipo === 'r2' && temEtapa('agendou_r3') ? 'r3'
+    : null;
+  const proximoMarcado = proximo !== null && marcou(a, proximo);
+  // Fecha no R2 e no R3. Na avaliação, só em empresa sem R2 ou para corrigir um fechamento de antes.
+  const fechaAqui = a.tipo !== 'avaliacao' || !comRetorno || a.fechou_plano !== null;
+  const formas = (Object.keys(FORMAS) as FormaFechamento[]).filter((f) => f === 'plano' || temEtapa(f));
+  const emEdicao = forma !== null || marcando;
 
   const marcarPresenca = (compareceu: boolean) => {
     setCorrigindo(false);
     presenca.mutate({ id: a.id, compareceu }, { onError: erro });
   };
   const fechar = (fechou: boolean) => {
+    const f = forma ?? 'plano';
     const v = fechou ? lerValor(valor) : null;
     if (fechou && !v) {
-      toast.error('Informe o valor do plano');
+      toast.error(`Informe o ${FORMAS[f].valor.toLowerCase()}`);
       return;
     }
     fechamento.mutate(
-      { id: a.id, fechou, valor: v, plano: fechou ? plano.trim() || null : null, sessoes: fechou && Number(sessoes) > 0 ? Math.round(Number(sessoes)) : null },
+      {
+        id: a.id, fechou, forma: fechou ? f : null, valor: v, plano: fechou ? plano.trim() || null : null,
+        sessoes: fechou && f === 'plano' && Number(sessoes) > 0 ? Math.round(Number(sessoes)) : null,
+      },
       {
         onSuccess: () => {
-          setPedindoValor(false);
+          setForma(null);
           setCorrigindo(false);
           setValor('');
-          if (fechou) toast.success(`Plano de ${nome} registrado: ${reais(v!)}`);
+          if (fechou) toast.success(`${FORMAS[f].rotulo}: ${nome}, ${reais(v!)}`);
+          else if (temEtapa('nao_fechou')) toast.success(`${nome} volta no Follow-up em 30 dias para um novo contato`);
+        },
+        onError: erro,
+      },
+    );
+  };
+  const abrirMarcacao = () => {
+    setMarcando(true);
+    setDiaR(format(addDays(new Date(), 1), 'yyyy-MM-dd'));
+    setHoraR('');
+  };
+  const salvarMarcacao = () => {
+    if (!proximo || !diaR || !horaR) {
+      toast.error('Escolha o dia e a hora');
+      return;
+    }
+    const quando = new Date(`${diaR}T${horaR}`);
+    agendar.mutate(
+      { leadId: a.lead_id, quando, tipo: proximo },
+      {
+        onSuccess: () => {
+          setMarcando(false);
+          setCorrigindo(false);
+          toast.success(`${ROTULO_TIPO[proximo]} de ${nome} marcado para ${format(quando, "EEEE, d/MM 'às' HH:mm", { locale: ptBR })}`);
         },
         onError: erro,
       },
@@ -197,72 +271,104 @@ function Linha({ a, mostrarUnidade }: { a: Avaliacao; mostrarUnidade: boolean })
   const situacao =
     a.status === 'agendada' ? { texto: 'Aguardando', cor: 'bg-muted text-muted-foreground' }
     : a.status === 'faltou' ? { texto: 'Faltou', cor: 'bg-red-100 text-red-700' }
-    : a.fechou_plano === true ? { texto: `Fechou plano · ${reais(Number(a.valor_plano ?? 0))}`, cor: 'bg-green-100 text-green-800' }
-    : a.fechou_plano === false ? { texto: 'Compareceu, não fechou', cor: 'bg-amber-100 text-amber-800' }
+    : a.fechou_plano === true ? { texto: `${FORMAS[a.forma_fechamento ?? 'plano'].rotulo} · ${reais(Number(a.valor_plano ?? 0))}`, cor: 'bg-green-100 text-green-800' }
+    : a.fechou_plano === false ? { texto: temEtapa('nao_fechou') ? 'Não fechou plano' : 'Compareceu, não fechou', cor: 'bg-amber-100 text-amber-800' }
+    : proximoMarcado ? { texto: `Compareceu · ${ROTULO_TIPO[proximo]} marcado`, cor: 'bg-primary/10 text-primary' }
     : { texto: 'Compareceu', cor: 'bg-primary/10 text-primary' };
 
-  const decidido = a.status === 'faltou' || (a.status === 'compareceu' && a.fechou_plano !== null);
+  const decidido = a.status === 'faltou' || (a.status === 'compareceu' && (a.fechou_plano !== null || proximoMarcado));
+  const aberto = a.status === 'compareceu' && (corrigindo || (a.fechou_plano === null && !proximoMarcado));
 
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5 border-b last:border-b-0">
       <span className="w-12 text-sm font-semibold text-foreground tabular-nums">{format(new Date(a.marcada_para), 'HH:mm')}</span>
       <div className="flex-1 min-w-48">
-        <p className="font-medium text-foreground">{nome}</p>
+        <p className="font-medium text-foreground">
+          {nome}
+          {a.tipo !== 'avaliacao' && (
+            <span className="ml-2 align-middle text-[11px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-semibold">{ROTULO_TIPO[a.tipo]}</span>
+          )}
+        </p>
         <p className="text-xs text-muted-foreground">
           {formatarTelefone(a.leads?.phone ?? '')}{mostrarUnidade && a.unidade ? ` · ${a.unidade}` : ''}
         </p>
       </div>
       <span className={`text-xs font-medium px-2 py-1 rounded-md ${situacao.cor}`}>{situacao.texto}</span>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {ocupado && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
 
-        {(a.status === 'agendada' || corrigindo) && !pedindoValor && (
+        {(a.status === 'agendada' || corrigindo) && !emEdicao && (
           <>
             <Button size="sm" disabled={ocupado} onClick={() => marcarPresenca(true)}>Compareceu</Button>
             <Button size="sm" variant="outline" disabled={ocupado} onClick={() => marcarPresenca(false)}>Faltou</Button>
           </>
         )}
 
-        {a.status === 'compareceu' && (a.fechou_plano === null || corrigindo) && !pedindoValor && (
+        {aberto && !emEdicao && (
           <>
-            <Button size="sm" disabled={ocupado} onClick={() => setPedindoValor(true)}>Fechou plano</Button>
-            <Button size="sm" variant="outline" disabled={ocupado} onClick={() => fechar(false)}>Não fechou</Button>
+            {fechaAqui && formas.map((f) => (
+              <Button key={f} size="sm" disabled={ocupado} onClick={() => setForma(f)}>{FORMAS[f].rotulo}</Button>
+            ))}
+            {fechaAqui && (
+              <Button size="sm" variant="outline" disabled={ocupado} onClick={() => fechar(false)}>
+                {temEtapa('nao_fechou') ? 'Não fechou plano' : 'Não fechou'}
+              </Button>
+            )}
+            {proximo && !proximoMarcado && (
+              <Button size="sm" variant={fechaAqui ? 'outline' : 'default'} disabled={ocupado} onClick={abrirMarcacao}>
+                Marcar {ROTULO_TIPO[proximo]}
+              </Button>
+            )}
           </>
         )}
 
-        {pedindoValor && (
+        {forma && (
           <>
+            <span className="text-xs font-medium text-muted-foreground">{FORMAS[forma].rotulo}</span>
             <Input
               autoFocus
               inputMode="decimal"
-              placeholder="Valor do plano"
+              placeholder={FORMAS[forma].valor}
               value={valor}
               onChange={(e) => setValor(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && fechar(true)}
-              className="h-9 w-36"
-            />
-            <Input
-              placeholder="Plano (opcional)"
-              value={plano}
-              onChange={(e) => setPlano(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && fechar(true)}
               className="h-9 w-44"
             />
-            <Input
-              type="number"
-              min={1}
-              placeholder="Sessões"
-              value={sessoes}
-              onChange={(e) => setSessoes(e.target.value)}
-              className="h-9 w-24"
-            />
+            {forma === 'plano' && (
+              <>
+                <Input
+                  placeholder="Plano (opcional)"
+                  value={plano}
+                  onChange={(e) => setPlano(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && fechar(true)}
+                  className="h-9 w-44"
+                />
+                <Input
+                  type="number"
+                  min={1}
+                  placeholder="Sessões"
+                  value={sessoes}
+                  onChange={(e) => setSessoes(e.target.value)}
+                  className="h-9 w-24"
+                />
+              </>
+            )}
             <Button size="sm" disabled={ocupado} onClick={() => fechar(true)}>Salvar</Button>
-            <Button size="sm" variant="ghost" onClick={() => { setPedindoValor(false); setValor(''); }}>Cancelar</Button>
+            <Button size="sm" variant="ghost" onClick={() => { setForma(null); setValor(''); }}>Cancelar</Button>
           </>
         )}
 
-        {decidido && !corrigindo && !pedindoValor && (
+        {marcando && proximo && (
+          <>
+            <Input type="date" aria-label={`Dia do ${ROTULO_TIPO[proximo]}`} value={diaR} onChange={(e) => setDiaR(e.target.value)} className="h-9 w-40" />
+            <Input type="time" aria-label={`Hora do ${ROTULO_TIPO[proximo]}`} value={horaR} step={300} onChange={(e) => setHoraR(e.target.value)} className="h-9 w-28" />
+            <Button size="sm" disabled={ocupado} onClick={salvarMarcacao}>Salvar</Button>
+            <Button size="sm" variant="ghost" onClick={() => setMarcando(false)}>Cancelar</Button>
+          </>
+        )}
+
+        {decidido && !corrigindo && !emEdicao && (
           <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => setCorrigindo(true)}>Corrigir</Button>
         )}
       </div>

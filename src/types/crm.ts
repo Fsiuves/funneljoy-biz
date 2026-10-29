@@ -1,4 +1,4 @@
-export type LeadSource = 'instagram' | 'ads' | 'website' | 'referral' | 'whatsapp' | 'other';
+export type LeadSource = 'instagram' | 'ads' | 'website' | 'referral' | 'whatsapp' | 'other' | 'totalpass';
 
 export type LeadStage =
   | 'new'
@@ -94,13 +94,15 @@ export interface DashboardMetrics {
   revenueThisMonth: number;
 }
 
-export const LEAD_SOURCES: { value: LeadSource; label: string }[] = [
+/** extra: só aparece no cadastro da empresa que liga (config.formulario.origens). */
+export const LEAD_SOURCES: { value: LeadSource; label: string; extra?: boolean }[] = [
   { value: 'instagram', label: 'Instagram' },
   { value: 'ads', label: 'Anúncios' },
   { value: 'website', label: 'Site' },
   { value: 'referral', label: 'Indicação' },
   { value: 'whatsapp', label: 'WhatsApp' },
   { value: 'other', label: 'Outro' },
+  { value: 'totalpass', label: 'TotalPass', extra: true },
 ];
 
 export const LEAD_STAGES: { value: LeadStage; label: string; color: string }[] = [

@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
-import { useConfig, useVocabulario } from '@/hooks/useEmpresa';
+import { useConfig, useOrigens, useVocabulario } from '@/hooks/useEmpresa';
 import { X, Loader2, AlertTriangle } from 'lucide-react';
-import { Lead, LeadSource, LEAD_SOURCES } from '@/types/crm';
+import { Lead, LeadSource } from '@/types/crm';
 import { Button } from '@/components/ui/button';
 
 interface AddLeadModalProps {
@@ -69,6 +69,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
   const campos = useConfig().config.formulario;
   const comEmpresa = campos?.empresa !== false;
   const comValor = campos?.valor !== false;
+  const origens = useOrigens();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -229,7 +230,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
                 className="input-field"
                 disabled={isLoading}
               >
-                {LEAD_SOURCES.map((source) => (
+                {origens.map((source) => (
                   <option key={source.value} value={source.value}>
                     {source.label}
                   </option>

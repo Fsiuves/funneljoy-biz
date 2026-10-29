@@ -8,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenant } from '@/hooks/useTenant';
 import { avisarPresenca } from '@/lib/presenca';
-import { reais } from '@/hooks/useAgenda';
+import { FORMAS, ROTULO_TIPO, reais, type FormaFechamento, type TipoHorario } from '@/hooks/useAgenda';
 
 interface Unidade {
   unidade: string;
@@ -22,7 +22,10 @@ interface Unidade {
   mediana_minutos: number | null;
   no_prazo_hoje: number;
   fila: { nome: string; desde: string; responsavel: string | null }[];
-  avaliacoes: { hora: string; nome: string; status: string; fechou_plano: boolean | null; valor: number | null }[];
+  avaliacoes: {
+    hora: string; nome: string; status: string; fechou_plano: boolean | null; valor: number | null;
+    tipo?: TipoHorario; forma?: FormaFechamento | null;
+  }[];
 }
 
 const maiuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
@@ -146,7 +149,10 @@ function Coluna({ u, agora }: { u: Unidade; agora: number }) {
             {ag.slice(0, 6).map((a, i) => (
               <div key={i} className="flex items-center gap-4 py-1.5 text-lg">
                 <span className="w-16 tabular-nums font-semibold">{a.hora}</span>
-                <span className="flex-1 truncate">{a.nome}</span>
+                <span className="flex-1 truncate">
+                  {a.nome}
+                  {a.tipo && a.tipo !== 'avaliacao' && <span className="ml-2 text-sm px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-200">{ROTULO_TIPO[a.tipo]}</span>}
+                </span>
                 <Situacao a={a} />
               </div>
             ))}
@@ -196,7 +202,7 @@ function Bloco({ rotulo, valor, extra, alerta = false }: { rotulo: string; valor
 function Situacao({ a }: { a: Unidade['avaliacoes'][number] }) {
   const [texto, cor] =
     a.status === 'faltou' ? ['Faltou', 'bg-red-500/20 text-red-200']
-    : a.status === 'compareceu' && a.fechou_plano ? ['Fechou plano', 'bg-emerald-500/20 text-emerald-200']
+    : a.status === 'compareceu' && a.fechou_plano ? [FORMAS[a.forma ?? 'plano'].rotulo, 'bg-emerald-500/20 text-emerald-200']
     : a.status === 'compareceu' && a.fechou_plano === false ? ['Não fechou', 'bg-amber-500/20 text-amber-200']
     : a.status === 'compareceu' ? ['Compareceu', 'bg-sky-500/20 text-sky-200']
     : ['Aguardando', 'bg-white/10'];

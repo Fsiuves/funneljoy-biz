@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useEtapas, useVocabulario } from '@/hooks/useEmpresa';
-import { ETAPA_PEDE_DATA, ETAPA_PEDE_VALOR, useMudarEtapa } from '@/hooks/useAgenda';
+import { pedeData, pedeValor, useMudarEtapa } from '@/hooks/useAgenda';
 import { MudarEtapaDialog } from '@/components/leads/MudarEtapaDialog';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
@@ -34,7 +34,7 @@ export default function Funnel() {
     }
     const lead = leads.find((l) => l.id === leadId);
     if (!lead) return;
-    if (newStage === ETAPA_PEDE_DATA || newStage === ETAPA_PEDE_VALOR) {
+    if (pedeData(newStage) || pedeValor(newStage)) {
       setMudando({ lead, etapa: newStage });
       return;
     }

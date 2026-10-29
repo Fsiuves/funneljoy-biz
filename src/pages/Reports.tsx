@@ -2,8 +2,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { useLeads } from '@/hooks/useLeads';
-import { LEAD_SOURCES } from '@/types/crm';
-import { useEtapas, useVocabulario } from '@/hooks/useEmpresa';
+import { useEtapas, useOrigens, useVocabulario } from '@/hooks/useEmpresa';
 import { Users, TrendingUp, Target, DollarSign, Loader2 } from 'lucide-react';
 
 export default function Reports() {
@@ -22,8 +21,9 @@ export default function Reports() {
   const conversionRate = leads.length > 0 ? Math.round((wonLeads.length / leads.length) * 100) : 0;
   const totalRevenue = wonLeads.reduce((sum, l) => sum + (l.value || 0), 0);
 
+  const origens = useOrigens();
   const getSourceStats = () => {
-    return LEAD_SOURCES.map(source => ({
+    return origens.map(source => ({
       ...source,
       count: leads.filter(lead => lead.source === source.value).length,
     }));

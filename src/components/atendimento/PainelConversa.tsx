@@ -11,7 +11,9 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { useAgendarAvaliacao, useAvaliacaoAberta, useUnidadeDoPaciente, useUnidadesDaEmpresa } from '@/hooks/useAgenda';
+import {
+  ROTULO_TIPO, useAgendarAvaliacao, useAvaliacaoAberta, useUnidadeDoPaciente, useUnidadesDaEmpresa,
+} from '@/hooks/useAgenda';
 import { useMeuPapel } from '@/hooks/useEmpresa';
 import { Button } from '@/components/ui/button';
 import {
@@ -534,6 +536,10 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
   // Agendar a avaliação sai da própria conversa: o paciente vai para "Agendou"
   // e entra na Agenda do dia (crm.agendar_avaliacao).
   const { data: avaliacaoAberta } = useAvaliacaoAberta(conversa.interna ? null : conversa.lead_id);
+  // Com um R2 ou R3 em aberto, o calendário remarca esse horário.
+  const tipoAberto = avaliacaoAberta?.tipo ?? 'avaliacao';
+  const rotuloAberto = tipoAberto === 'avaliacao' ? 'avaliação' : ROTULO_TIPO[tipoAberto];
+  const marcadoAberto = tipoAberto === 'avaliacao' ? 'Avaliação marcada' : `${ROTULO_TIPO[tipoAberto]} marcado`;
   const agendar = useAgendarAvaliacao();
   // A unidade da avaliação: Osasco conversa com paciente que vai ser atendido na
   // Lapa. Em outra unidade, o paciente passa para ela.
@@ -559,11 +565,11 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
     }
     const quando = new Date(`${diaAv}T${horaAv}`);
     agendar.mutate(
-      { leadId: conversa.lead_id, quando, unidade: unidadeAv || null },
+      { leadId: conversa.lead_id, quando, unidade: unidadeAv || null, tipo: tipoAberto },
       {
         onSuccess: () => {
           toast.success(
-            `Avaliação marcada para ${format(quando, "EEEE, d/MM 'às' HH:mm", { locale: ptBR })}`
+            `${marcadoAberto} para ${format(quando, "EEEE, d/MM 'às' HH:mm", { locale: ptBR })}`
               + (mudaUnidade ? `, unidade ${unidadeAv}. ${nome} passou para ${unidadeAv}.` : ''),
             { duration: mudaUnidade ? 8000 : 4000 },
           );
@@ -699,12 +705,12 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
           {!conversa.interna && conversa.lead_id && (
             <Popover open={agendaAberta} onOpenChange={abrirAgenda}>
               <PopoverTrigger asChild>
-                <Button size="icon" variant="ghost" title={avaliacaoAberta ? 'Remarcar avaliação' : 'Agendar avaliação'}>
+                <Button size="icon" variant="ghost" title={avaliacaoAberta ? `Remarcar ${rotuloAberto}` : 'Agendar avaliação'}>
                   <CalendarPlus className="w-4 h-4" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" className="w-72 space-y-3">
-                <p className="text-sm font-medium text-foreground">{avaliacaoAberta ? 'Remarcar avaliação' : 'Agendar avaliação'}</p>
+                <p className="text-sm font-medium text-foreground">{avaliacaoAberta ? `Remarcar ${rotuloAberto}` : 'Agendar avaliação'}</p>
                 <div className="grid grid-cols-2 gap-2">
                   <Input type="date" value={diaAv} onChange={(e) => setDiaAv(e.target.value)} className="h-9" />
                   <Input type="time" value={horaAv} onChange={(e) => setHoraAv(e.target.value)} step={300} className="h-9" />
@@ -723,8 +729,8 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
                 )}
                 <p className="text-xs text-muted-foreground">
                   {mudaUnidade
-                    ? `${nome} passa para a unidade ${unidadeAv}, vai para "Agendou avaliação" e aparece na Agenda de lá.`
-                    : `${nome} vai para "Agendou avaliação" e aparece na Agenda do dia.`}
+                    ? `${nome} passa para a unidade ${unidadeAv}, vai para "Agendou ${rotuloAberto}" e aparece na Agenda de lá.`
+                    : `${nome} vai para "Agendou ${rotuloAberto}" e aparece na Agenda do dia.`}
                 </p>
                 <div className="flex justify-end gap-2">
                   <Button size="sm" variant="ghost" onClick={() => setAgendaAberta(false)}>Cancelar</Button>
@@ -774,7 +780,7 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
       {avaliacaoAberta && (
         <div className="flex items-center gap-2 border-b border-border bg-primary/5 px-5 py-1.5 text-xs font-medium text-primary">
           <CalendarCheck className="w-3.5 h-3.5 shrink-0" />
-          Avaliação marcada: {format(new Date(avaliacaoAberta.marcada_para), "EEEE, d/MM 'às' HH:mm", { locale: ptBR })}
+          {marcadoAberto}: {format(new Date(avaliacaoAberta.marcada_para), "EEEE, d/MM 'às' HH:mm", { locale: ptBR })}
         </div>
       )}
 

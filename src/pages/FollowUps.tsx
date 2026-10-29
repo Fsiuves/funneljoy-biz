@@ -155,6 +155,15 @@ export default function FollowUps() {
         description: `Follow-up concluído${followUpDate ? ` (agendado para ${followUpDate})` : ''}`,
       });
       
+      // Quem não fechou plano volta de tempos em tempos: concluir já marca o
+      // próximo contato para daqui a 30 dias (pedido da clínica, 29/10).
+      if (lead.stage === 'nao_fechou') {
+        const proximo = addDays(new Date(), 30);
+        proximo.setHours(10, 0, 0, 0);
+        await updateLead.mutateAsync({ id: lead.id, nextFollowUp: proximo });
+        toast({ title: 'Follow-up concluído!', description: `Próximo contato com ${lead.name} em ${format(proximo, 'dd/MM')}.` });
+        return;
+      }
       // Clear the follow-up
       await updateLead.mutateAsync({ id: lead.id, nextFollowUp: null });
       toast({ title: 'Follow-up concluído!', description: `Retorno de ${lead.name} marcado como realizado.` });

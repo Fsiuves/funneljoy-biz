@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useConfig, useVocabulario } from '@/hooks/useEmpresa';
+import { useConfig, useOrigens, useVocabulario } from '@/hooks/useEmpresa';
 import { X, Loader2 } from 'lucide-react';
-import { Lead, LeadSource, LEAD_SOURCES } from '@/types/crm';
+import { Lead, LeadSource } from '@/types/crm';
 import { Button } from '@/components/ui/button';
 
 interface EditLeadModalProps {
@@ -49,6 +49,7 @@ export function EditLeadModal({ isOpen, onClose, lead, onSave, isLoading }: Edit
   const campos = useConfig().config.formulario;
   const comEmpresa = campos?.empresa !== false;
   const comValor = campos?.valor !== false;
+  const origens = useOrigens();
   const [form, setForm] = useState({
     name: '', email: '', phone: '', company: '', source: 'website' as LeadSource, value: '',
   });
@@ -114,7 +115,7 @@ export function EditLeadModal({ isOpen, onClose, lead, onSave, isLoading }: Edit
             <div className={comEmpresa ? '' : 'col-span-2'}>
               <label className="block text-sm font-medium text-foreground mb-2">Origem *</label>
               <select required value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value as LeadSource })} className="input-field" disabled={isLoading}>
-                {LEAD_SOURCES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                {origens.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
             </div>
             {comValor && (
