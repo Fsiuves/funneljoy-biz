@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { buscarTudo } from '@/lib/buscarTudo';
+import { mensagemDeErro } from '@/hooks/useAtendimento';
 
 // A tabela de avaliações não está nos tipos gerados do Lovable.
 const crm = supabase as any;
@@ -95,7 +96,7 @@ const ERROS: Record<string, string> = {
 
 async function chamar(fn: string, args: Record<string, unknown>) {
   const { data, error } = await crm.rpc(fn, args);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(mensagemDeErro(error));
   if (!data?.success) throw new Error(ERROS[data?.error] ?? data?.error ?? 'Não foi possível salvar');
   return data;
 }
@@ -190,10 +191,14 @@ export const pedeValor = (etapa: string) =>
 
 export const reais = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-/** "1.500,00", "1500" e "1500.5" viram número. */
+/** "1.500,00", "1.500", "1500" e "1500.5" viram número. */
 export function lerValor(texto: string): number | null {
-  const limpo = texto.replace(/[^\d,.-]/g, '');
-  const n = Number(limpo.includes(',') ? limpo.replace(/\./g, '').replace(',', '.') : limpo);
+  let limpo = texto.replace(/[^\d,.-]/g, '');
+  if (limpo.includes(',')) limpo = limpo.replace(/\./g, '').replace(',', '.');
+  // "1.500" e "12.300" têm ponto de milhar, como se escreve no Brasil: antes viravam
+  // R$ 1,50 e R$ 12,30 (4 planos gravados assim em 28 e 29/10).
+  else if (/^\d{1,3}(\.\d{3})+$/.test(limpo)) limpo = limpo.replace(/\./g, '');
+  const n = Number(limpo);
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 

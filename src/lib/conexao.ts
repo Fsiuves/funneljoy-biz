@@ -15,6 +15,10 @@ const CHAVE_SESSAO = 'sb-ygxlplfdrpkxqszesmtn-auth-token';
 const PRAZO_MS = 20_000;
 // O envio pelo painel leva foto, áudio e documento.
 const PRAZO_ENVIO_MS = 120_000;
+// Renovação do login: curto. Se a resposta se perde, o supabase-js tenta de novo
+// com o mesmo token, e o servidor só aceita o mesmo token por 10 s; passou disso,
+// ele derruba a sessão em todas as abas.
+const PRAZO_LOGIN_MS = 8_000;
 
 let ruim = false;
 const ouvintes = new Set<() => void>();
@@ -79,7 +83,9 @@ export function criarFetch(chavePublica: string, base: typeof fetch, aoFicarSemL
     }
 
     const controle = new AbortController();
-    const prazo = url.includes('/functions/v1/wa-enviar') ? PRAZO_ENVIO_MS : PRAZO_MS;
+    const prazo = url.includes('/functions/v1/wa-enviar') ? PRAZO_ENVIO_MS
+      : url.includes('/auth/v1/token') ? PRAZO_LOGIN_MS
+      : PRAZO_MS;
     const relogio = setTimeout(() => controle.abort(new DOMException('Tempo esgotado', 'TimeoutError')), prazo);
     const externo = init?.signal;
     if (externo) {

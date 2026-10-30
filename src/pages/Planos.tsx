@@ -5,12 +5,12 @@ import { toast } from 'sonner';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
+import { ErroAoCarregar } from '@/components/ErroAoCarregar';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Loader2, MessageCircle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { useEquipe } from '@/hooks/useAtendimento';
+import { useEquipe, conversaDoPaciente } from '@/hooks/useAtendimento';
 import { FORMAS, reais, usePlanos, type PlanoFechado } from '@/hooks/useAgenda';
 import { formatarTelefone } from '@/components/atendimento/PainelConversa';
 
@@ -40,7 +40,7 @@ function noPeriodo(p: Periodo, quando: string | null) {
  */
 export default function Planos() {
   const navigate = useNavigate();
-  const { data: planos = [], isLoading } = usePlanos();
+  const { data: planos = [], isLoading, isError, isFetching, refetch } = usePlanos();
   const { data: equipe = [] } = useEquipe();
   const nomes = useMemo(() => new Map(equipe.map((p) => [p.id, p.name])), [equipe]);
   const [periodo, setPeriodo] = useState<Periodo>('mes');
@@ -62,11 +62,13 @@ export default function Planos() {
   const total = lista.reduce((s, p) => s + Number(p.valor_plano ?? 0), 0);
 
   const abrirConversa = async (p: PlanoFechado) => {
-    const { data } = await (supabase as any)
-      .from('conversations').select('id').eq('lead_id', p.lead_id)
-      .order('last_message_at', { ascending: false }).limit(1).maybeSingle();
-    if (data?.id) navigate(`/atendimento?conversa=${data.id}`);
-    else toast.error('Esse paciente ainda não tem conversa no WhatsApp');
+    try {
+      const id = await conversaDoPaciente({ id: p.lead_id, phone: p.leads?.phone });
+      if (id) navigate(`/atendimento?conversa=${id}`);
+      else toast.error('Esse paciente ainda não tem conversa no WhatsApp');
+    } catch {
+      toast.error('Sem conexão com o servidor. Tente de novo.');
+    }
   };
 
   return (
@@ -115,7 +117,10 @@ export default function Planos() {
             {isLoading && (
               <tr><td colSpan={8} className="py-10 text-center"><Loader2 className="w-6 h-6 animate-spin text-primary inline" /></td></tr>
             )}
-            {!isLoading && lista.length === 0 && (
+            {!isLoading && isError && planos.length === 0 && (
+              <tr><td colSpan={8}><ErroAoCarregar oQue="os planos" tentar={() => void refetch()} tentando={isFetching} /></td></tr>
+            )}
+            {!isLoading && !isError && lista.length === 0 && (
               <tr><td colSpan={8} className="px-6 py-10 text-center text-muted-foreground">
                 Nenhum plano fechado neste período. Quando a recepção marca Fechou plano na Agenda ou no funil, ele aparece aqui.
               </td></tr>

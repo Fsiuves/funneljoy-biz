@@ -104,6 +104,7 @@ export function useCreateLead() {
       company?: string;
       source: LeadSource;
       value?: number;
+      unidade?: string;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
@@ -122,6 +123,8 @@ export function useCreateLead() {
           value: lead.value || null,
           created_by: user.id,
           tenant_id: tenantId,
+          // Sem unidade, o banco usa a de quem cadastra (atendente).
+          ...(lead.unidade ? { unidade: lead.unidade } : {}),
         })
         .select()
         .single();
@@ -224,12 +227,14 @@ export function useDeleteLead() {
   
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('leads')
         .delete()
-        .eq('id', id);
-      
+        .eq('id', id)
+        .select('id');
       if (error) throw error;
+      // A regra do banco recusa sem erro (atendente não exclui): nada saiu.
+      if (!data?.length) throw new Error('Você não tem permissão para excluir este cadastro.');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });

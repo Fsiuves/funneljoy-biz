@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { IntegrationSettingsModal } from '@/components/settings/IntegrationSettingsModal';
@@ -13,6 +13,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { avisarConversaAberta } from '@/lib/presenca';
 import {
   useAtualizarConversa, useConversas, useEquipe, useModulosAtivos, useAnunciosDeOrigem, origemDaConversa, descreverOrigem,
+  useBuscaConversas, useConversaPorId,
   type Conversa,
 } from '@/hooks/useAtendimento';
 import { CornerUpLeft, Loader2, Megaphone, MessageCircle, Search, Smartphone } from 'lucide-react';
@@ -94,7 +95,9 @@ export default function Atendimento() {
   const { user } = useAuth();
   const { data: modulos, isLoading: carregandoModulos } = useModulosAtivos();
   const liberado = !!modulos?.has('atendimento');
-  const { data: conversas = [], isLoading, isError, isFetching, refetch } = useConversas(liberado);
+  const { data: recentes = [], isLoading: carregandoConversas, isError, isFetching, refetch } = useConversas(liberado);
+  // Enquanto os módulos carregam a lista fica desligada: é carregando, não "nenhuma conversa".
+  const isLoading = carregandoConversas || carregandoModulos;
   const { data: equipe = [] } = useEquipe();
   const { data: origens } = useAnunciosDeOrigem(liberado);
   const atualizar = useAtualizarConversa();
@@ -107,6 +110,23 @@ export default function Atendimento() {
   // ?conversa= abre direto a conversa (vem do Follow-up e dos Planos).
   const [abertaId, setAbertaId] = useState<string | null>(() => parametros.get('conversa'));
   const [conectar, setConectar] = useState(false);
+
+  // Conversas antigas, fora das 500 da lista: as achadas na busca e a do ?conversa=.
+  const { data: achadas = [] } = useBuscaConversas(busca, liberado);
+  const naLista = recentes.some((c) => c.id === abertaId);
+  const { data: avulsa } = useConversaPorId(abertaId, liberado && !carregandoConversas && !naLista);
+  const conversas = useMemo(() => {
+    const extras = [...achadas, ...(avulsa ? [avulsa] : [])];
+    if (!extras.length) return recentes;
+    const ids = new Set(recentes.map((c) => c.id));
+    const novas: Conversa[] = [];
+    for (const c of extras) {
+      if (ids.has(c.id)) continue;
+      ids.add(c.id);
+      novas.push(c);
+    }
+    return novas.length ? [...recentes, ...novas] : recentes;
+  }, [recentes, achadas, avulsa]);
 
   const eu = equipe.find((p) => p.id === user?.id);
   const nomes = useMemo(() => new Map(equipe.map((p) => [p.id, p.name || p.email])), [equipe]);
@@ -136,7 +156,9 @@ export default function Atendimento() {
       if (fila === 'sem' && c.assigned_to) return false;
       if (termo) {
         const nome = (c.contact_name ?? '').toLowerCase();
-        if (!nome.includes(termo) && !(digitos.length >= 3 && c.phone.includes(digitos))) return false;
+        // Pelo fim do número: acha com ou sem o 9 e com ou sem o 55.
+        const fim = digitos.length >= 8 ? digitos.slice(-8) : digitos;
+        if (!nome.includes(termo) && !(digitos.length >= 3 && c.phone.includes(fim))) return false;
       }
       return true;
     });
@@ -149,13 +171,25 @@ export default function Atendimento() {
   useEffect(() => { avisarConversaAberta(abertaId); }, [abertaId]);
   useEffect(() => () => avisarConversaAberta(null), []);
 
-  // Abrir a conversa é ler. Só conta com a aba visível.
+  // Abrir a conversa é ler. Só conta com a aba visível, e conta também quando a
+  // aba volta a ficar visível com a conversa aberta.
+  const [visivel, setVisivel] = useState(() => document.visibilityState === 'visible');
   useEffect(() => {
-    if (!aberta || aberta.unread_count === 0) return;
-    if (document.visibilityState !== 'visible') return;
+    const aoMudar = () => setVisivel(document.visibilityState === 'visible');
+    document.addEventListener('visibilitychange', aoMudar);
+    return () => document.removeEventListener('visibilitychange', aoMudar);
+  }, []);
+  // Uma tentativa por conversa e mensagem: se a gravação falha, o cache volta ao
+  // não lido e o efeito gravaria de novo sem parar (laço com a rede ruim).
+  const tentouLer = useRef('');
+  useEffect(() => {
+    if (!aberta || aberta.unread_count === 0 || !visivel) return;
+    const chave = `${aberta.id}:${aberta.last_message_at}`;
+    if (tentouLer.current === chave) return;
+    tentouLer.current = chave;
     atualizar.mutate({ id: aberta.id, unread_count: 0 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aberta?.id, aberta?.unread_count]);
+  }, [aberta?.id, aberta?.unread_count, aberta?.last_message_at, visivel]);
 
   if (!carregandoModulos && !liberado) {
     return (

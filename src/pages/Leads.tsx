@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { ErroAoCarregar } from '@/components/ErroAoCarregar';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { AddLeadModal } from '@/components/leads/AddLeadModal';
@@ -7,7 +8,7 @@ import { EditLeadModal } from '@/components/leads/EditLeadModal';
 import { LeadDetailsModal } from '@/components/leads/LeadDetailsModal';
 import { useLeads, useCreateLead, useDeleteLead, useUpdateLead } from '@/hooks/useLeads';
 import { Lead, LeadSource, LEAD_SOURCES } from '@/types/crm';
-import { useEtapas, useVocabulario } from '@/hooks/useEmpresa';
+import { useConfig, useEtapas, useMeuPapel, useVocabulario } from '@/hooks/useEmpresa';
 import { Phone, Mail, Building2, MoreHorizontal, Eye, Edit, Trash2, Loader2, Search, ArrowRightLeft } from 'lucide-react';
 import { MudarEtapaDialog } from '@/components/leads/MudarEtapaDialog';
 import { format } from 'date-fns';
@@ -23,6 +24,9 @@ export default function Leads() {
   // Com 1.273 pacientes a tabela inteira de uma vez pesava e piscava por um minuto
   // (cada linha entrava com atraso pela posição). Mostra 100 por vez; a busca procura em todos.
   const [limite, setLimite] = useState(100);
+  const comEmpresa = useConfig().config.formulario?.empresa !== false;
+  const { data: papel } = useMeuPapel();
+  const podeExcluir = papel === 'admin' || papel === 'manager';
   const [detailsLead, setDetailsLead] = useState<Lead | null>(null);
   const [editLead, setEditLead] = useState<Lead | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -32,7 +36,7 @@ export default function Leads() {
     if (q !== null) setSearchTerm(q);
   }, [searchParams]);
   
-  const { data: leads = [], isLoading } = useLeads();
+  const { data: leads = [], isLoading, isError, isFetching, refetch } = useLeads();
   const createLead = useCreateLead();
   const deleteLead = useDeleteLead();
   const updateLead = useUpdateLead();
@@ -45,7 +49,8 @@ export default function Leads() {
       lead.name.toLowerCase().includes(term) ||
       (lead.email && lead.email.toLowerCase().includes(term)) ||
       (lead.company && lead.company.toLowerCase().includes(term)) ||
-      (phoneDigits && lead.phone.includes(phoneDigits))
+      // Pelo fim do número, sem a formatação: acha com ou sem 55 e com ou sem o 9.
+      (phoneDigits.length >= 3 && lead.phone.replace(/\D/g, '').includes(phoneDigits.length >= 8 ? phoneDigits.slice(-8) : phoneDigits))
     );
   });
 
@@ -56,6 +61,7 @@ export default function Leads() {
     company?: string;
     source: LeadSource;
     value?: number;
+    unidade?: string;
   }) => {
     createLead.mutate(leadData, {
       onSuccess: () => setIsModalOpen(false),
@@ -101,6 +107,14 @@ export default function Leads() {
     );
   }
 
+  if (isError && leads.length === 0) {
+    return (
+      <MainLayout>
+        <ErroAoCarregar oQue={`os ${v.leads}`} tentar={() => void refetch()} tentando={isFetching} />
+      </MainLayout>
+    );
+  }
+
   return (
     <MainLayout>
       <Header 
@@ -115,10 +129,11 @@ export default function Leads() {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
           type="text"
-          placeholder="Buscar por nome, telefone, empresa..."
+          placeholder={comEmpresa ? 'Buscar por nome, telefone, empresa...' : 'Buscar por nome ou telefone...'}
           value={searchTerm}
           onChange={(e) => {
             setSearchTerm(e.target.value);
+            setLimite(100);
             if (searchParams.get('q')) {
               searchParams.delete('q');
               setSearchParams(searchParams, { replace: true });
@@ -258,13 +273,14 @@ export default function Leads() {
                               <Edit className="w-4 h-4" />
                               Editar
                             </button>
-                            <button 
+                            {/* Atendente não exclui (a regra do banco só deixa direção e gerente). */}
+                            {podeExcluir && <button
                               onClick={() => handleDeleteLead(lead.id)}
                               className="w-full flex items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-muted transition-colors"
                             >
                               <Trash2 className="w-4 h-4" />
                               Excluir
-                            </button>
+                            </button>}
                           </div>
                         )}
                       </div>

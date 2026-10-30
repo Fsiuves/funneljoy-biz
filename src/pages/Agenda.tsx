@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useEquipe } from '@/hooks/useAtendimento';
 import { useConfig, useEtapas } from '@/hooks/useEmpresa';
 import { formatarTelefone } from '@/components/atendimento/PainelConversa';
+import { ErroAoCarregar } from '@/components/ErroAoCarregar';
 import {
   FORMAS, ROTULO_TIPO, lerValor, reais, useAgendarAvaliacao, useAvaliacoes, useRegistrarFechamento, useRegistrarPresenca,
   type Avaliacao, type FormaFechamento, type TipoHorario,
@@ -55,7 +56,7 @@ export default function Agenda() {
     return [dia, addDays(dia, 1)];
   }, [dia, periodo]);
 
-  const { data: doDia = [], isLoading } = useAvaliacoes(dia, addDays(dia, 1));
+  const { data: doDia = [], isLoading, isError, isFetching, refetch } = useAvaliacoes(dia, addDays(dia, 1));
   const { data: doPeriodo = [] } = useAvaliacoes(de, ate);
 
   const unidades = useMemo(
@@ -164,7 +165,10 @@ export default function Agenda() {
         {isLoading && (
           <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
         )}
-        {!isLoading && lista.length === 0 && (
+        {!isLoading && isError && lista.length === 0 && (
+          <ErroAoCarregar oQue="a agenda" tentar={() => void refetch()} tentando={isFetching} />
+        )}
+        {!isLoading && !isError && lista.length === 0 && (
           <p className="px-6 py-10 text-center text-sm text-muted-foreground">
             Nenhum horário neste dia. Para marcar uma avaliação, abra a conversa do paciente no Atendimento e use o calendário no topo.
           </p>

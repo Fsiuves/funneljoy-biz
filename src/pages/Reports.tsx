@@ -1,3 +1,4 @@
+import { ErroAoCarregar } from '@/components/ErroAoCarregar';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { MetricCard } from '@/components/dashboard/MetricCard';
@@ -8,7 +9,7 @@ import { Users, TrendingUp, Target, DollarSign, Loader2 } from 'lucide-react';
 export default function Reports() {
   const { etapas, ehGanho, estaAberta } = useEtapas();
   const v = useVocabulario();
-  const { data: leads = [], isLoading } = useLeads();
+  const { data: leads = [], isLoading, isError, isFetching, refetch } = useLeads();
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -48,6 +49,14 @@ export default function Reports() {
         <div className="flex items-center justify-center h-[60vh]">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
+      </MainLayout>
+    );
+  }
+
+  if (isError && leads.length === 0) {
+    return (
+      <MainLayout>
+        <ErroAoCarregar oQue={`os ${v.leads}`} tentar={() => void refetch()} tentando={isFetching} />
       </MainLayout>
     );
   }

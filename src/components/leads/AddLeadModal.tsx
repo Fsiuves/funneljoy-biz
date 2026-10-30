@@ -1,5 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useConfig, useOrigens, useVocabulario } from '@/hooks/useEmpresa';
+import { useAuth } from '@/hooks/useAuth';
+import { useEquipe } from '@/hooks/useAtendimento';
+import { useUnidadesDaEmpresa } from '@/hooks/useAgenda';
 import { X, Loader2, AlertTriangle } from 'lucide-react';
 import { Lead, LeadSource } from '@/types/crm';
 import { Button } from '@/components/ui/button';
@@ -14,6 +17,7 @@ interface AddLeadModalProps {
     company?: string;
     source: LeadSource;
     value?: number;
+    unidade?: string;
   }) => void;
   isLoading?: boolean;
   existingLeads?: Lead[];
@@ -70,6 +74,14 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
   const comEmpresa = campos?.empresa !== false;
   const comValor = campos?.valor !== false;
   const origens = useOrigens();
+  // Quem não tem unidade (gerente, direção) escolhe a do paciente: sem isso ele
+  // ficava sem unidade, aparecia nas duas e nenhuma atendente conseguia agendar.
+  const { user } = useAuth();
+  const { data: equipe = [] } = useEquipe();
+  const { data: unidades = [] } = useUnidadesDaEmpresa();
+  const eu = equipe.find((p) => p.id === user?.id);
+  const pedeUnidade = unidades.length > 1 && !!eu && !eu.unidade;
+  const [unidade, setUnidade] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -108,6 +120,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (phoneDuplicate && !forceCreate) return;
+    if (pedeUnidade && !unidade) return;
     const numericValue = formData.value ? parseCurrency(formData.value) : undefined;
     onAdd({
       ...formData,
@@ -116,6 +129,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
       phone: formData.phone.replace(/\D/g, ''), // Send only numbers
       company: formData.company || undefined,
       value: numericValue,
+      unidade: pedeUnidade ? unidade : undefined,
     });
     setFormData({
       name: '',
@@ -217,6 +231,16 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
                 disabled={isLoading}
               />
             </div>
+            )}
+
+            {pedeUnidade && (
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-foreground mb-2">Unidade *</label>
+                <select required value={unidade} onChange={(e) => setUnidade(e.target.value)} className="input-field" disabled={isLoading}>
+                  <option value="">Escolha a unidade</option>
+                  {unidades.map((u) => <option key={u} value={u}>{u}</option>)}
+                </select>
+              </div>
             )}
 
             <div className={comEmpresa ? '' : 'col-span-2'}>

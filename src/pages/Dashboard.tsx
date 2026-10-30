@@ -1,3 +1,4 @@
+import { ErroAoCarregar } from '@/components/ErroAoCarregar';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { useEtapas, useVocabulario } from '@/hooks/useEmpresa';
 import { Header } from '@/components/layout/Header';
@@ -12,7 +13,7 @@ import { Users, TrendingUp, Clock, DollarSign, UserPlus, Target, Loader2 } from 
 export default function Dashboard() {
   const { ehGanho, estaAberta } = useEtapas();
   const v = useVocabulario();
-  const { data: leads = [], isLoading: leadsLoading } = useLeads();
+  const { data: leads = [], isLoading: leadsLoading, isError: erroLeads, isFetching: buscandoLeads, refetch: buscarLeads } = useLeads();
   const { data: activities = [], isLoading: activitiesLoading } = useActivities();
 
   const formatCurrency = (value: number) => {
@@ -51,6 +52,14 @@ export default function Dashboard() {
         <div className="flex items-center justify-center h-[60vh]">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
+      </MainLayout>
+    );
+  }
+
+  if (erroLeads && leads.length === 0) {
+    return (
+      <MainLayout>
+        <ErroAoCarregar oQue={`os ${v.leads}`} tentar={() => void buscarLeads()} tentando={buscandoLeads} />
       </MainLayout>
     );
   }

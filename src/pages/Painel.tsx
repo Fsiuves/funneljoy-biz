@@ -47,7 +47,7 @@ export default function Painel() {
   const { tenant } = useTenant();
   const [agora, setAgora] = useState(Date.now());
 
-  const { data, isLoading, dataUpdatedAt } = useQuery({
+  const { data, isLoading, isError, dataUpdatedAt } = useQuery({
     queryKey: ['painel-recepcao'],
     refetchInterval: 30_000,
     queryFn: async () => {
@@ -92,6 +92,15 @@ export default function Painel() {
       </header>
 
       {isLoading && <Loader2 className="w-8 h-8 animate-spin opacity-60 mx-auto mt-20" />}
+
+      {/* Na TV ninguém clica: se parou de atualizar, avisa em vez de mostrar números velhos. */}
+      {(isError || (dataUpdatedAt > 0 && agora - dataUpdatedAt > 120_000)) && (
+        <div className="rounded-xl bg-red-500/20 px-4 py-2 text-center text-lg text-red-100">
+          {dataUpdatedAt > 0
+            ? `Sem atualizar desde ${format(dataUpdatedAt, 'HH:mm')}. Tentando de novo…`
+            : 'Sem conexão com o servidor. Tentando de novo…'}
+        </div>
+      )}
 
       <div className={`grid gap-6 flex-1 ${unidades.length > 1 ? 'xl:grid-cols-2' : ''}`}>
         {unidades.map((u) => <Coluna key={u.unidade} u={u} agora={agora} />)}

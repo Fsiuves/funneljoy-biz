@@ -1,6 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { AvisoNovaVersao } from "@/components/AvisoNovaVersao";
 import { AvisoConexao } from "@/components/AvisoConexao";
+import { ErroNaTela } from "@/components/ErroNaTela";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -33,6 +34,7 @@ const App = () => (
       <AvisoConexao />
       <Sonner />
       <MarcaProvider>
+      <ErroNaTela>
       <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<Auth />} />
@@ -56,6 +58,7 @@ const App = () => (
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
+      </ErroNaTela>
       </MarcaProvider>
     </TooltipProvider>
   </QueryClientProvider>

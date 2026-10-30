@@ -86,7 +86,9 @@ export function Sidebar() {
 
   const handleLogout = async () => {
     await signOut();
-    navigate('/auth');
+    // Recarrega: na memória da tela ficavam as conversas e os pacientes de quem
+    // saiu, e quem entrasse em seguida na mesma aba via os da outra unidade.
+    window.location.href = '/auth';
   };
 
   // Enquanto a empresa carrega, vale a marca do endereço (já conhecida antes do

@@ -114,8 +114,11 @@ export function useAuth() {
   };
 
   const signOut = async () => {
-    await sairDaPresenca();
-    const { error } = await supabase.auth.signOut();
+    // Sem esperar a presença: com a rede ruim o Sair parecia não funcionar.
+    void sairDaPresenca();
+    // Só neste computador. O padrão do supabase-js tira a pessoa de todos, inclusive
+    // da TV do Painel logada com a mesma conta.
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
     return { error };
   };
 

@@ -23,14 +23,16 @@ import {
   abrirMidia, avisoTelefoneMarcado, momentoMensagem, preencherResposta, useMarcarTelefoneEquipe,
   useAtualizarConversa, useEnviarMensagem, useMensagens, useRespostasProntas, useRegrasAtendimento, assinarMensagem,
   lerAnexo, LIMITE_ANEXO, adicionarPendente, confirmarPendente, removerPendente, buscarNovasMensagens,
-  useAnunciosDeOrigem, origemDaConversa, nomeCurtoCampanha, useColocarNoFunil,
+  useAnunciosDeOrigem, origemDaConversa, nomeCurtoCampanha, useColocarNoFunil, mensagemDeErro,
   type Conversa, type Mensagem, type Pessoa,
 } from '@/hooks/useAtendimento';
 
 // ---------------------------------------------------------------- formato
 
 export function formatarTelefone(digitos: string): string {
-  const d = (digitos ?? '').replace(/\D/g, '');
+  let d = (digitos ?? '').replace(/\D/g, '');
+  // Paciente cadastrado à mão vem sem o 55: aparecia "+11987654321".
+  if (d.length === 10 || d.length === 11) d = '55' + d;
   if (d.startsWith('55') && (d.length === 12 || d.length === 13)) {
     const ddd = d.slice(2, 4);
     const resto = d.slice(4);
@@ -333,11 +335,13 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
     setAnexo(null);
 
     fila.current = fila.current.then(async () => {
+      let anexoSaiu = false;
       try {
         if (doAnexo && pendenteAnexo) {
           const dados = await lerAnexo(doAnexo.arquivo, doAnexo.mimetype, doAnexo.nome);
           const r = await enviar.mutateAsync({ conversationId: conv.id, texto: audio ? '' : assinado, anexo: dados });
           confirmarPendente(qc, conv.id, pendenteAnexo, r?.message_id ?? null);
+          anexoSaiu = true;
         }
         if (pendenteTexto) {
           const r = await enviar.mutateAsync({ conversationId: conv.id, texto: assinado });
@@ -345,12 +349,13 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
         }
         void buscarNovasMensagens(qc, conv);
       } catch (e) {
-        [pendenteAnexo, pendenteTexto].forEach((id) => id && removerPendente(qc, conv.id, id));
-        toast.error(e instanceof Error ? e.message : 'Falha ao enviar');
+        // O que já saiu fica; só o que falhou volta (o áudio ia de novo no reenvio).
+        [anexoSaiu ? null : pendenteAnexo, pendenteTexto].forEach((id) => id && removerPendente(qc, conv.id, id));
+        toast.error(mensagemDeErro(e));
         // Devolve o que não saiu, se a pessoa ainda está na mesma conversa e com a caixa vazia.
         if (conversaAtual.current === conv.id) {
           if (corpo) setTexto((atual) => atual || corpo);
-          if (doAnexo) setAnexo((atual) => atual ?? { ...doAnexo, previa: URL.createObjectURL(doAnexo.arquivo) });
+          if (doAnexo && !anexoSaiu) setAnexo((atual) => atual ?? { ...doAnexo, previa: URL.createObjectURL(doAnexo.arquivo) });
         }
       }
     });

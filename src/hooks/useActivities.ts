@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { buscarTudo } from '@/lib/buscarTudo';
 import { minhaEmpresaId } from '@/lib/minhaEmpresa';
 import { Activity, ActivityType } from '@/types/crm';
 import { toast } from '@/hooks/use-toast';
@@ -34,18 +35,16 @@ export function useActivities(leadId?: string) {
   return useQuery({
     queryKey: ['activities', leadId],
     queryFn: async () => {
-      let query = supabase
-        .from('activities')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (leadId) {
-        query = query.eq('lead_id', leadId);
-      }
-      
-      const { data, error } = await query;
-      
-      if (error) throw error;
+      // De 1.000 em 1.000: o servidor devolve no máximo 1.000 linhas por vez.
+      const data = await buscarTudo<any>((de, ate) => {
+        let query = supabase
+          .from('activities')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .order('id');
+        if (leadId) query = query.eq('lead_id', leadId);
+        return query.range(de, ate);
+      });
       return (data as ActivityRow[]).map(mapActivityFromDb);
     },
   });

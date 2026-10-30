@@ -62,7 +62,7 @@ export function ProtectedRoute({ children, requireTenant = true }: ProtectedRout
       } catch {
         // Sem armazenamento a pessoa só não vê o motivo.
       }
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' });
       setAjustando(false);
     })();
   }, [foraDaEmpresaDoEndereco, ajustando, marca]);

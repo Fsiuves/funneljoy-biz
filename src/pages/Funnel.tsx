@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { useEtapas, useVocabulario } from '@/hooks/useEmpresa';
 import { pedeData, pedeValor, useMudarEtapa } from '@/hooks/useAgenda';
 import { MudarEtapaDialog } from '@/components/leads/MudarEtapaDialog';
+import { ErroAoCarregar } from '@/components/ErroAoCarregar';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { KanbanBoard } from '@/components/leads/KanbanBoard';
@@ -15,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 export default function Funnel() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const { data: leads = [], isLoading } = useLeads();
+  const { data: leads = [], isLoading, isError, isFetching, refetch } = useLeads();
   const createLead = useCreateLead();
   const updateStage = useUpdateLeadStage();
   const v = useVocabulario();
@@ -62,6 +63,7 @@ export default function Funnel() {
     company?: string;
     source: LeadSource;
     value?: number;
+    unidade?: string;
   }) => {
     createLead.mutate(leadData, {
       onSuccess: () => setIsModalOpen(false),
@@ -74,6 +76,14 @@ export default function Funnel() {
         <div className="flex items-center justify-center h-[60vh]">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
+      </MainLayout>
+    );
+  }
+
+  if (isError && leads.length === 0) {
+    return (
+      <MainLayout>
+        <ErroAoCarregar oQue={`os ${v.leads}`} tentar={() => void refetch()} tentando={isFetching} />
       </MainLayout>
     );
   }
@@ -106,6 +116,7 @@ export default function Funnel() {
         onClose={() => setIsModalOpen(false)}
         onAdd={handleAddLead}
         isLoading={createLead.isPending}
+        existingLeads={leads}
       />
 
       <MudarEtapaDialog

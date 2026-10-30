@@ -8,10 +8,18 @@ export async function buscarTudo<T>(
   pagina: (de: number, ate: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
 ): Promise<T[]> {
   const tudo: T[] = [];
+  const vistos = new Set<unknown>();
   for (let de = 0; ; de += 1000) {
     const { data, error } = await pagina(de, de + 999);
     if (error) throw error;
-    tudo.push(...(data ?? []));
+    // Linha nova criada entre uma página e outra empurra a lista: sem isso a
+    // mesma linha viria duas vezes.
+    for (const linha of data ?? []) {
+      const id = (linha as { id?: unknown }).id;
+      if (id !== undefined && vistos.has(id)) continue;
+      if (id !== undefined) vistos.add(id);
+      tudo.push(linha);
+    }
     if (!data || data.length < 1000) return tudo;
   }
 }

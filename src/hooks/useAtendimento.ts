@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { buscarTudo } from '@/lib/buscarTudo';
 import { useAuth } from './useAuth';
 
 // As tabelas do atendimento não estão nos tipos gerados do Lovable.
@@ -92,7 +93,18 @@ async function erroDaFuncao(error: any, data: any): Promise<string> {
     const corpo = await error.context.json().catch(() => null);
     codigo = corpo?.error;
   }
-  return ERROS[codigo] ?? codigo ?? error?.message ?? 'Erro inesperado';
+  if (ERROS[codigo]) return ERROS[codigo];
+  if (codigo) return codigo;
+  return mensagemDeErro(error);
+}
+
+/** Erro técnico de rede ("Failed to fetch", prazo, sem login) vira frase para a recepção. */
+export function mensagemDeErro(error: unknown): string {
+  const texto = error instanceof Error ? `${error.name} ${error.message}` : String(error ?? '');
+  if (/Failed to fetch|NetworkError|TimeoutError|Tempo esgotado|SemLoginError|Reconectando|Failed to send a request|AbortError|Load failed/i.test(texto)) {
+    return 'Sem conexão com o servidor. Tente de novo em instantes.';
+  }
+  return error instanceof Error && error.message ? error.message : 'Erro inesperado';
 }
 
 // ---------------------------------------------------------------- módulos
@@ -157,10 +169,13 @@ export function useEquipe() {
     staleTime: 60_000,
     queryFn: async () => {
       // A função vem de user_roles; o RLS devolve só as da empresa atual.
-      const [{ data: pessoas }, { data: papeis }] = await Promise.all([
+      const [{ data: pessoas, error: e1 }, { data: papeis, error: e2 }] = await Promise.all([
         crm.from('profiles').select('id, name, email, unidade, ativo').order('name'),
         crm.from('user_roles').select('user_id, role'),
       ]);
+      // Sem a equipe, a mensagem sairia sem assinatura e todo responsável viraria "Equipe":
+      // melhor dar erro e tentar de novo do que guardar uma lista vazia.
+      if (e1 || e2) throw e1 ?? e2;
       const papel = new Map((papeis ?? []).map((r: any) => [r.user_id, r.role]));
       return (pessoas ?? []).map((p: any) => ({ ...p, role: papel.get(p.id) ?? null })) as Pessoa[];
     },
@@ -200,6 +215,63 @@ function comMudancasRecentes(lista: Conversa[]): Conversa[] {
     }
   }
   return mudou ? [...porId.values()].sort(maisRecentePrimeiro) : lista;
+}
+
+/**
+ * A lista traz as 500 conversas mais recentes (são 1.800 na clínica). A busca
+ * com 3 letras ou mais procura também no servidor: nome, ou o fim do telefone
+ * (8 últimos dígitos, que achem o número com ou sem o 9).
+ */
+export function useBuscaConversas(busca: string, ativo = true) {
+  const termo = busca.trim();
+  const digitos = termo.replace(/\D/g, '');
+  return useQuery({
+    queryKey: ['conversas', 'busca', termo],
+    enabled: ativo && termo.length >= 3,
+    staleTime: 30_000,
+    queryFn: async () => {
+      let consulta = crm.from('conversations').select('*')
+        .order('last_message_at', { ascending: false, nullsFirst: false })
+        .limit(50);
+      consulta = digitos.length >= 4
+        ? consulta.like('phone', `%${digitos.slice(-8)}%`)
+        : consulta.ilike('contact_name', `%${termo.replace(/[%_]/g, '')}%`);
+      const { data, error } = await consulta;
+      if (error) throw error;
+      return (data ?? []) as Conversa[];
+    },
+  });
+}
+
+/**
+ * A conversa de um paciente, para "Abrir conversa" (Follow-up, Planos): pelo
+ * cadastro ligado e, se não houver, pelo fim do telefone. Paciente cadastrado à
+ * mão por cima de um que veio do WhatsApp ficava sem conversa.
+ */
+export async function conversaDoPaciente(lead: { id: string; phone?: string | null }): Promise<string | null> {
+  const porCadastro = await crm.from('conversations').select('id').eq('lead_id', lead.id)
+    .order('last_message_at', { ascending: false }).limit(1).maybeSingle();
+  if (porCadastro.error) throw porCadastro.error;
+  if (porCadastro.data?.id) return porCadastro.data.id;
+  const fim = (lead.phone ?? '').replace(/\D/g, '').slice(-8);
+  if (fim.length < 8) return null;
+  const porTelefone = await crm.from('conversations').select('id').like('phone', `%${fim}`).eq('interna', false)
+    .order('last_message_at', { ascending: false }).limit(1).maybeSingle();
+  if (porTelefone.error) throw porTelefone.error;
+  return porTelefone.data?.id ?? null;
+}
+
+/** A conversa do ?conversa= (Follow-up, Planos) que não está entre as 500 da lista. */
+export function useConversaPorId(id: string | null, ativo: boolean) {
+  return useQuery({
+    queryKey: ['conversas', 'id', id],
+    enabled: ativo && !!id,
+    queryFn: async () => {
+      const { data, error } = await crm.from('conversations').select('*').eq('id', id).maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as Conversa | null;
+    },
+  });
 }
 
 export function useConversas(ativo = true) {
@@ -246,6 +318,7 @@ export function aplicarMudancaConversa(
 export function useConversasTempoReal(ativo: boolean) {
   const qc = useQueryClient();
   const nome = useRef(`crm-conversas-${Math.random().toString(36).slice(2)}`);
+  const conectou = useRef(false);
 
   useEffect(() => {
     if (!ativo) return;
@@ -254,7 +327,13 @@ export function useConversasTempoReal(ativo: boolean) {
       .on('postgres_changes', { event: '*', schema: 'crm', table: 'conversations' }, (evento: any) => {
         qc.setQueryData<Conversa[]>(['conversas'], (lista) => aplicarMudancaConversa(lista, evento));
       })
-      .subscribe();
+      // Os eventos da queda não voltam: ao reconectar, a lista é buscada de novo
+      // (antes a mensagem nova podia levar até 2 min para aparecer).
+      .subscribe((status: string) => {
+        if (status !== 'SUBSCRIBED') return;
+        if (conectou.current) void qc.invalidateQueries({ queryKey: ['conversas'] });
+        conectou.current = true;
+      });
     return () => {
       supabase.removeChannel(canal);
     };
@@ -369,14 +448,14 @@ export function useAnunciosDeOrigem(ativo = true) {
     staleTime: 2 * 60_000,
     refetchInterval: 2 * 60_000,
     queryFn: async () => {
-      const { data, error } = await crm
+      const data = await buscarTudo<OrigemAnuncio>((de, ate) => crm
         .from('anuncio_origem')
         .select('telefone, chave_telefone, unidade, plataforma, campanha, conjunto, anuncio, chegou_em')
         .order('chegou_em', { ascending: false })
-        .limit(5000);
-      if (error) throw error;
+        .order('id')
+        .range(de, ate));
       const mapa = new Map<string, OrigemAnuncio>();
-      for (const o of (data ?? []) as OrigemAnuncio[]) {
+      for (const o of data) {
         const chave = `${o.unidade ?? ''}|${o.chave_telefone ?? chaveTelefone(o.telefone)}`;
         if (!mapa.has(chave)) mapa.set(chave, o);
       }

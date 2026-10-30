@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { useModulosAtivos } from '@/hooks/useAtendimento';
+import { conversaDoPaciente, useModulosAtivos } from '@/hooks/useAtendimento';
 import { useConfig, useVocabulario } from '@/hooks/useEmpresa';
+import { ErroAoCarregar } from '@/components/ErroAoCarregar';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
@@ -42,7 +42,7 @@ const activityLabels = {
 };
 
 export default function FollowUps() {
-  const { data: leads = [], isLoading: leadsLoading } = useLeads();
+  const { data: leads = [], isLoading: leadsLoading, isError: erroLeads, isFetching: buscandoLeads, refetch: buscarLeads } = useLeads();
   const { data: activities = [], isLoading: activitiesLoading } = useActivities();
   const updateLead = useUpdateLead();
   const v = useVocabulario();
@@ -55,11 +55,13 @@ export default function FollowUps() {
 
   // Com o atendimento pelo CRM, o retorno é pelo WhatsApp: abre a conversa.
   const abrirConversa = async (lead: Lead) => {
-    const { data } = await (supabase as any)
-      .from('conversations').select('id').eq('lead_id', lead.id)
-      .order('last_message_at', { ascending: false }).limit(1).maybeSingle();
-    if (data?.id) navigate(`/atendimento?conversa=${data.id}`);
-    else toast({ title: 'Sem conversa no WhatsApp', description: `${lead.name} ainda não falou com a clínica pelo WhatsApp.` });
+    try {
+      const id = await conversaDoPaciente(lead);
+      if (id) navigate(`/atendimento?conversa=${id}`);
+      else toast({ title: 'Sem conversa no WhatsApp', description: `${lead.name} ainda não falou com a clínica pelo WhatsApp.` });
+    } catch {
+      toast({ title: 'Sem conexão com o servidor', description: 'Tente de novo em instantes.', variant: 'destructive' });
+    }
   };
 
   const [activityModalOpen, setActivityModalOpen] = useState(false);
@@ -301,6 +303,14 @@ export default function FollowUps() {
         <div className="flex items-center justify-center h-[60vh]">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
+      </MainLayout>
+    );
+  }
+
+  if (erroLeads && leads.length === 0) {
+    return (
+      <MainLayout>
+        <ErroAoCarregar oQue={`os ${v.leads}`} tentar={() => void buscarLeads()} tentando={buscandoLeads} />
       </MainLayout>
     );
   }

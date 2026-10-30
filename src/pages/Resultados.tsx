@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
+import { ErroAoCarregar } from '@/components/ErroAoCarregar';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -75,7 +76,7 @@ export default function Resultados() {
   const [abertas, setAbertas] = useState<Set<string>>(new Set());
   const [de, ate] = useMemo(() => intervalo(periodo), [periodo]);
 
-  const { data: linhas = [], isLoading } = useResultados(de, ate);
+  const { data: linhas = [], isLoading, isError, isFetching, refetch } = useResultados(de, ate);
   const { data: sync } = useSincronizacao();
   const sincronizar = useSincronizar();
 
@@ -174,6 +175,12 @@ export default function Resultados() {
         <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
           {sincronizar.isPending ? (
             <span className="flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando os anúncios</span>
+          ) : sync?.concluido_em && sync.ok === false ? (
+            // A busca roda e falha (token da Meta vencido, por exemplo): o gasto fica velho.
+            <span className="flex items-center gap-1.5 text-amber-700" title={(sync.detalhe?.avisos ?? []).join('\n')}>
+              <AlertTriangle className="w-3.5 h-3.5" />
+              A última busca dos anúncios falhou ({format(new Date(sync.concluido_em), "d/MM 'às' HH:mm")}): investimento pode estar desatualizado
+            </span>
           ) : sync?.concluido_em ? (
             <span>Anúncios atualizados em {format(new Date(sync.concluido_em), "d/MM 'às' HH:mm")}</span>
           ) : null}
@@ -232,6 +239,9 @@ export default function Resultados() {
           <tbody>
             {isLoading && (
               <tr><td colSpan={9} className="py-10 text-center"><Loader2 className="w-6 h-6 animate-spin text-primary inline" /></td></tr>
+            )}
+            {!isLoading && isError && linhas.length === 0 && (
+              <tr><td colSpan={9}><ErroAoCarregar oQue="os resultados" tentar={() => void refetch()} tentando={isFetching} /></td></tr>
             )}
             {campanhas.map((c) => {
               const aberta = abertas.has(c.chave);
