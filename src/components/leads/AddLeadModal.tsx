@@ -3,6 +3,8 @@ import { useConfig, useOrigens, useVocabulario } from '@/hooks/useEmpresa';
 import { useAuth } from '@/hooks/useAuth';
 import { useEquipe } from '@/hooks/useAtendimento';
 import { useUnidadesDaEmpresa } from '@/hooks/useAgenda';
+import { useUpdateLead } from '@/hooks/useLeads';
+import { toast } from '@/hooks/use-toast';
 import { X, Loader2, AlertTriangle } from 'lucide-react';
 import { Lead, LeadSource } from '@/types/crm';
 import { Button } from '@/components/ui/button';
@@ -91,6 +93,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
     value: '',
   });
   const [forceCreate, setForceCreate] = useState(false);
+  const atualizar = useUpdateLead();
 
   const norm = (s: string) => s.trim().toLowerCase();
   const phoneDigits = formData.phone.replace(/\D/g, '');
@@ -117,9 +120,42 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
 
   if (!isOpen) return null;
 
+  const limpar = () => {
+    setFormData({
+      name: '',
+      email: '',
+      phone: '',
+      company: '',
+      source: 'website',
+      value: '',
+    });
+    setForceCreate(false);
+  };
+
+  // Telefone que já existe: o que foi digitado completa aquele cadastro. Só
+  // havia "Cadastrar mesmo assim", e a recepção criou 16 cópias de pacientes do
+  // WhatsApp (28 e 29/10): a conversa ficava na ficha "Novo contato" e o plano
+  // fechado na cópia. A origem só muda se foi escolhida (website é o padrão).
+  const completarExistente = async (existente: Lead) => {
+    const nome = formData.name.trim();
+    const email = formData.email.trim();
+    await atualizar.mutateAsync({
+      id: existente.id,
+      ...(nome ? { name: nome } : {}),
+      ...(email ? { email } : {}),
+      ...(formData.source !== 'website' ? { source: formData.source } : {}),
+    });
+    toast({ title: `Cadastro de ${nome || existente.name} atualizado` });
+    limpar();
+    onClose();
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (phoneDuplicate && !forceCreate) return;
+    if (phoneDuplicate && !forceCreate) {
+      completarExistente(phoneDuplicate).catch(() => {});
+      return;
+    }
     if (pedeUnidade && !unidade) return;
     const numericValue = formData.value ? parseCurrency(formData.value) : undefined;
     onAdd({
@@ -131,15 +167,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
       value: numericValue,
       unidade: pedeUnidade ? unidade : undefined,
     });
-    setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      company: '',
-      source: 'website',
-      value: '',
-    });
-    setForceCreate(false);
+    limpar();
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -233,7 +261,7 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
             </div>
             )}
 
-            {pedeUnidade && (
+            {pedeUnidade && (!phoneDuplicate || forceCreate) && (
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-foreground mb-2">Unidade *</label>
                 <select required value={unidade} onChange={(e) => setUnidade(e.target.value)} className="input-field" disabled={isLoading}>
@@ -289,13 +317,18 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
                   Já existe {v.um} com este telefone: {phoneDuplicate.name}
                   {phoneDuplicate.company ? ` (${phoneDuplicate.company})` : ''}
                 </p>
+                {!forceCreate && (
+                  <p className="mt-1 text-muted-foreground">
+                    O nome e o e-mail digitados vão para esse cadastro, que já tem a conversa.
+                  </p>
+                )}
                 <label className="flex items-center gap-2 mt-2 text-foreground">
                   <input
                     type="checkbox"
                     checked={forceCreate}
                     onChange={(e) => setForceCreate(e.target.checked)}
                   />
-                  Cadastrar mesmo assim
+                  É outra pessoa: cadastrar à parte
                 </label>
               </div>
             </div>
@@ -321,8 +354,9 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
             <Button type="button" variant="outline" onClick={onClose} className="flex-1" disabled={isLoading}>
               Cancelar
             </Button>
-            <Button type="submit" className="flex-1 btn-primary" disabled={isLoading || (!!phoneDuplicate && !forceCreate)}>
-              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : `Adicionar ${v.lead}`}
+            <Button type="submit" className="flex-1 btn-primary" disabled={isLoading || atualizar.isPending}>
+              {isLoading || atualizar.isPending ? <Loader2 className="w-5 h-5 animate-spin" />
+                : phoneDuplicate && !forceCreate ? 'Atualizar o cadastro' : `Adicionar ${v.lead}`}
             </Button>
           </div>
         </form>
