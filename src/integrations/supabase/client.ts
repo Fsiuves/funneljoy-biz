@@ -3,7 +3,7 @@ import { createClient, processLock } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { brokeredPreviewStorage } from './previewAuthStorage';
 import { comEmpresaDaAba } from '@/lib/empresaDaAba';
-import { criarFetch } from '@/lib/conexao';
+import { criarFetch, validadePeloRelogioLocal } from '@/lib/conexao';
 
 const SUPABASE_URL = "https://ygxlplfdrpkxqszesmtn.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlneGxwbGZkcnBreHFzemVzbXRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMzAzNzAsImV4cCI6MjA5NDcwNjM3MH0.KegTqYTFxRoq7mpD7g5ymGESWEaqHiLGyWW2pkijN-8";
@@ -20,7 +20,8 @@ export const supabase = createClient<{ crm: Database['public'] }>(SUPABASE_URL, 
     ),
   },
   auth: {
-    storage: brokeredPreviewStorage(),
+    // Vencimento do login pelo relógio do computador (src/lib/conexao.ts).
+    storage: validadePeloRelogioLocal(brokeredPreviewStorage()),
     persistSession: true,
     autoRefreshToken: true,
     // Trava da sessão só nesta aba. A trava entre abas (navigator.locks) deixava

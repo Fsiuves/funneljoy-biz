@@ -57,6 +57,47 @@ function temLoginGuardado(): boolean {
   }
 }
 
+type Guarda = {
+  getItem(chave: string): string | null | Promise<string | null>;
+  setItem(chave: string, valor: string): void | Promise<void>;
+  removeItem(chave: string): void | Promise<void>;
+};
+
+/**
+ * Validade do login pelo relógio do computador. O supabase-js guarda a hora em
+ * que o login vence pelo relógio do servidor e compara com o do computador. O
+ * da Lapa estava 4 min atrasado: por 2 a 3 min de cada hora o login ia vencido,
+ * o servidor recusava tudo e o envio dava "Edge Function returned a non-2xx
+ * status code" (vídeo de 30/10; 379 recusas no dia). Aqui o vencimento passa a
+ * ser a hora em que o login chegou, no relógio do computador, mais a duração.
+ */
+export function validadePeloRelogioLocal<T extends Guarda>(base: T | undefined): Guarda | undefined {
+  if (!base) return base;
+  return {
+    getItem: (chave) => base.getItem(chave),
+    removeItem: (chave) => base.removeItem(chave),
+    async setItem(chave, valor) {
+      if (chave === CHAVE_SESSAO) valor = ajustarValidade(valor, await base.getItem(chave));
+      return base.setItem(chave, valor);
+    },
+  };
+}
+
+function ajustarValidade(valor: string, anterior: string | null): string {
+  try {
+    const sessao = JSON.parse(valor);
+    if (!sessao?.access_token || typeof sessao.expires_in !== 'number') return valor;
+    const antiga = anterior ? JSON.parse(anterior) : null;
+    // O mesmo login salvo de novo mantém o vencimento já ajustado.
+    sessao.expires_at = antiga?.access_token === sessao.access_token && typeof antiga.expires_at === 'number'
+      ? antiga.expires_at
+      : Math.floor(Date.now() / 1000) + sessao.expires_in;
+    return JSON.stringify(sessao);
+  } catch {
+    return valor;
+  }
+}
+
 const enderecoDe = (input: RequestInfo | URL) =>
   typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
 

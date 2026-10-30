@@ -89,12 +89,15 @@ const ERROS: Record<string, string> = {
 
 async function erroDaFuncao(error: any, data: any): Promise<string> {
   let codigo = data?.error;
+  let corpo: any = null;
   if (!codigo && error?.context?.json) {
-    const corpo = await error.context.json().catch(() => null);
+    corpo = await error.context.json().catch(() => null);
     codigo = corpo?.error;
   }
   if (ERROS[codigo]) return ERROS[codigo];
   if (codigo) return codigo;
+  // Recusa da plataforma do Supabase, antes da função ({"code", "message"}).
+  if (corpo?.message) return `Falha no servidor (${error.context.status}, ${corpo.code ?? corpo.message}). Tente de novo em instantes.`;
   return mensagemDeErro(error);
 }
 
