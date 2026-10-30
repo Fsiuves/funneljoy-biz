@@ -71,10 +71,15 @@ type Guarda = {
  * status code" (vídeo de 30/10; 379 recusas no dia). Aqui o vencimento passa a
  * ser a hora em que o login chegou, no relógio do computador, mais a duração.
  */
+const MARCA_RELOGIO = 'vence_pelo_relogio_local';
+
 export function validadePeloRelogioLocal<T extends Guarda>(base: T | undefined): Guarda | undefined {
   if (!base) return base;
   return {
-    getItem: (chave) => base.getItem(chave),
+    async getItem(chave) {
+      const valor = await base.getItem(chave);
+      return chave === CHAVE_SESSAO ? renovarSeAntigo(valor) : valor;
+    },
     removeItem: (chave) => base.removeItem(chave),
     async setItem(chave, valor) {
       if (chave === CHAVE_SESSAO) valor = ajustarValidade(valor, await base.getItem(chave));
@@ -86,13 +91,29 @@ export function validadePeloRelogioLocal<T extends Guarda>(base: T | undefined):
 function ajustarValidade(valor: string, anterior: string | null): string {
   try {
     const sessao = JSON.parse(valor);
-    if (!sessao?.access_token || typeof sessao.expires_in !== 'number') return valor;
+    if (!sessao?.access_token) return valor;
     const antiga = anterior ? JSON.parse(anterior) : null;
-    // O mesmo login salvo de novo mantém o vencimento já ajustado.
-    sessao.expires_at = antiga?.access_token === sessao.access_token && typeof antiga.expires_at === 'number'
-      ? antiga.expires_at
-      : Math.floor(Date.now() / 1000) + sessao.expires_in;
+    if (typeof sessao.expires_in === 'number') {
+      // Login novo: vence pelo relógio daqui. O mesmo login salvo de novo mantém
+      // o vencimento já ajustado; se veio da versão antiga, renova já.
+      sessao.expires_at = antiga?.access_token !== sessao.access_token
+        ? Math.floor(Date.now() / 1000) + sessao.expires_in
+        : antiga[MARCA_RELOGIO] ? antiga.expires_at : 0;
+    }
+    sessao[MARCA_RELOGIO] = true;
     return JSON.stringify(sessao);
+  } catch {
+    return valor;
+  }
+}
+
+/** Login guardado pela versão antiga (vencimento pelo relógio do servidor): renova ao abrir. */
+function renovarSeAntigo(valor: string | null): string | null {
+  if (!valor) return valor;
+  try {
+    const sessao = JSON.parse(valor);
+    if (!sessao?.access_token || sessao[MARCA_RELOGIO]) return valor;
+    return JSON.stringify({ ...sessao, expires_at: 0 });
   } catch {
     return valor;
   }
