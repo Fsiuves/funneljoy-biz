@@ -114,6 +114,7 @@ export function AvisosModal({ open, onOpenChange }: AvisosModalProps) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-2xl">
+          <DialogTitle className="sr-only">Avisos no WhatsApp</DialogTitle>
           <div className="py-10 flex justify-center">{isLoading && <Loader2 className="w-6 h-6 animate-spin text-primary" />}</div>
         </DialogContent>
       </Dialog>

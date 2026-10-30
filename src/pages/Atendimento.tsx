@@ -150,10 +150,14 @@ export default function Atendimento() {
     const termo = busca.trim().toLowerCase();
     const digitos = busca.replace(/\D/g, '');
     return conversas.filter((c) => {
-      if ((c.status === 'resolvida') !== resolvidas) return false;
       if (!naUnidade(c)) return false;
-      if (fila === 'minhas' && c.assigned_to !== user?.id) return false;
-      if (fila === 'sem' && c.assigned_to) return false;
+      // Buscando, vale qualquer aba: quem procura um nome não sabe se a conversa
+      // está aberta ou resolvida, nem com quem.
+      if (!termo) {
+        if ((c.status === 'resolvida') !== resolvidas) return false;
+        if (fila === 'minhas' && c.assigned_to !== user?.id) return false;
+        if (fila === 'sem' && c.assigned_to) return false;
+      }
       if (termo) {
         const nome = (c.contact_name ?? '').toLowerCase();
         // Pelo fim do número: acha com ou sem o 9 e com ou sem o 55.
