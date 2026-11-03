@@ -25,6 +25,19 @@ export interface SendResult {
   ok: boolean
   providerId?: string
   error?: string
+  // A Evolution não respondeu no prazo: a mensagem pode sair quando a conexão
+  // voltar (03/11, Lapa: saiu às 10:22 e só foi confirmada às 10:52).
+  semResposta?: boolean
+}
+
+// Texto leva 1 a 3 s; foto, áudio e documento sobem o arquivo.
+const PRAZO_TEXTO_MS = 25_000
+const PRAZO_ANEXO_MS = 90_000
+
+function falhaDeEnvio(e: unknown): SendResult {
+  const nome = (e as Error)?.name
+  if (nome === 'TimeoutError' || nome === 'AbortError') return { ok: false, semResposta: true, error: 'sem resposta da Evolution' }
+  return { ok: false, error: e instanceof Error ? e.message : String(e) }
 }
 
 export interface Midia {
@@ -74,7 +87,7 @@ export async function enviarResposta(
     if (cfg.provedor === 'cloud') return await enviarCloudTexto(cfg, phone, mensagem)
     return await enviarEvolutionTexto(cfg, phone, mensagem)
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    return falhaDeEnvio(e)
   }
 }
 
@@ -103,7 +116,7 @@ export async function enviarAnexo(cfg: WaConfig, telefone: string, anexo: Anexo)
     if (cfg.provedor === 'cloud') return await enviarCloudAnexo(cfg, phone, anexo)
     return await enviarEvolutionAnexo(cfg, phone, anexo)
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    return falhaDeEnvio(e)
   }
 }
 
@@ -132,6 +145,7 @@ async function enviarEvolutionTexto(cfg: WaConfig, phone: string, texto: string)
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: cfg.evolution_apikey! },
     body: JSON.stringify({ number: phone, text: texto }),
+    signal: AbortSignal.timeout(PRAZO_TEXTO_MS),
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) return { ok: false, error: `Evolution ${res.status}: ${JSON.stringify(data)}` }
@@ -161,10 +175,33 @@ async function enviarEvolutionAnexo(cfg: WaConfig, phone: string, anexo: Anexo):
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: cfg.evolution_apikey! },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(PRAZO_ANEXO_MS),
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) return { ok: false, error: `Evolution ${res.status}: ${JSON.stringify(data).slice(0, 300)}` }
   return { ok: true, providerId: data?.key?.id ?? data?.id ?? undefined }
+}
+
+// Fecha a conexão do número e reconecta com a sessão guardada: não desconecta o
+// WhatsApp nem pede QR code. É o que destrava o processamento das mensagens
+// quando ele para (Lapa, 03/11). O código da Evolution 2.3.7 usa POST; a
+// documentação da v2 diz PUT.
+export async function reiniciarConexao(cfg: WaConfig): Promise<string> {
+  const base = evolutionBase(cfg)
+  if (cfg.provedor !== 'evolution' || !base) return 'sem Evolution configurada'
+  for (const method of ['POST', 'PUT']) {
+    try {
+      const res = await fetch(`${base}/instance/restart/${encodeURIComponent(cfg.evolution_instance!)}`, {
+        method,
+        headers: { apikey: cfg.evolution_apikey! },
+        signal: AbortSignal.timeout(20_000),
+      })
+      if (res.status !== 404 && res.status !== 405) return `${method} ${res.status} ${(await res.text()).slice(0, 120)}`
+    } catch (e) {
+      return `${method} ${e instanceof Error ? e.message : String(e)}`
+    }
+  }
+  return 'rota de reinício não encontrada'
 }
 
 // POST {url}/chat/getBase64FromMediaMessage/{instance}  body { message: { key: { id } } }

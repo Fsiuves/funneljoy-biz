@@ -81,6 +81,7 @@ const ERROS: Record<string, string> = {
   numero_inativo: 'O número desta unidade está desativado.',
   janela_fechada: 'Passaram 24h da última mensagem do paciente. Na conexão oficial, só modelo aprovado.',
   falha_envio: 'O WhatsApp recusou o envio. Confira se o número da unidade está conectado.',
+  whatsapp_sem_resposta: 'O WhatsApp da unidade não confirmou o envio. A mensagem pode sair quando a conexão voltar: confira no celular antes de reenviar.',
   texto_longo: 'Mensagem longa demais.',
   dados_invalidos: 'Mensagem vazia.',
   midia_indisponivel: 'Não foi possível abrir esta mídia.',

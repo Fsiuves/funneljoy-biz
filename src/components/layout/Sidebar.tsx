@@ -34,6 +34,7 @@ import { useMarca } from '@/hooks/useMarca';
 import { aplicarMarcaDaEmpresa } from '@/lib/marca';
 import { definirEmpresaDaAba, empresaDaAba } from '@/lib/empresaDaAba';
 import { useConfig, useMenu, useVocabulario } from '@/hooks/useEmpresa';
+import { AvisoWhatsapp } from '@/components/AvisoWhatsapp';
 
 const menuItems = [
   // Atendimento e Agenda juntos no alto: só aparecem para quem tem o módulo.
@@ -116,6 +117,8 @@ export function Sidebar() {
           </h1>
         )}
       </div>
+
+      <AvisoWhatsapp />
 
       {/* Troca de empresa: só para quem tem papel em mais de uma, e nunca no
           endereço de uma empresa, que já prende a pessoa nela */}

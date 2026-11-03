@@ -9,7 +9,10 @@
 // trigger dele e atualiza a conversa pelo trigger do CRM.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
-import { configDaConta, enviarAnexo, enviarResposta, tipoDoAnexo } from "../_shared/wa-provider.ts";
+import { configDaConta, enviarAnexo, enviarResposta, reiniciarConexao, tipoDoAnexo } from "../_shared/wa-provider.ts";
+
+// Do runtime do Supabase: segura a função viva até a promessa terminar.
+declare const EdgeRuntime: { waitUntil(promessa: Promise<unknown>): void };
 
 // 10 MB de arquivo viram cerca de 13,4 MB em base64.
 const LIMITE_BASE64 = 14_000_000;
@@ -53,7 +56,7 @@ Deno.serve(async (req) => {
 
     const { data: conversa } = await comoUsuario
       .from("conversations")
-      .select("id, tenant_id, phone, radar_company_id, radar_lead_id, assigned_to, window_expires_at, wa_accounts(provedor, instancia, phone_number_id, ativo)")
+      .select("id, tenant_id, phone, radar_company_id, radar_lead_id, assigned_to, window_expires_at, wa_accounts(id, unidade, provedor, instancia, phone_number_id, ativo)")
       .eq("id", conversation_id)
       .maybeSingle();
     if (!conversa) return resposta({ error: "sem_acesso" }, 403);
@@ -74,12 +77,30 @@ Deno.serve(async (req) => {
           tipo, base64: anexo.base64, mimetype: anexo.mimetype, nome: anexo.nome ?? null, legenda,
         })
       : await enviarResposta(configDaConta(conta), conversa.phone, corpo);
+    const admin = createClient(supabaseUrl, serviceKey);
+    if (!envio.ok && envio.semResposta) {
+      // Processamento do número travado na Evolution (Lapa, 03/11: 52 min sem
+      // receber nem enviar). Marca o número (a faixa aparece na tela) e reinicia
+      // a conexão, no máximo uma vez a cada 10 min (37-saude-do-whatsapp.sql). O
+      // reinício roda depois da resposta, para a tela avisar sem esperar.
+      console.error("[wa-enviar] sem resposta", conta.instancia);
+      const { data: reinicia } = await admin.schema("crm")
+        .rpc("wa_marcar_sem_resposta", { _conta: conta.id, _erro: "envio sem resposta da Evolution" });
+      if (reinicia) {
+        EdgeRuntime.waitUntil(reiniciarConexao(configDaConta(conta)).then((r) =>
+          admin.schema("crm").from("wa_conexao_eventos").insert({
+            wa_account_id: conta.id, tenant_id: (conversa as any).tenant_id, unidade: conta.unidade ?? null,
+            evento: "reiniciou", detalhe: r,
+          })
+        ));
+      }
+      return resposta({ error: "whatsapp_sem_resposta" }, 504);
+    }
     if (!envio.ok) {
       console.error("[wa-enviar] falha", envio.error);
       return resposta({ error: "falha_envio", detalhe: envio.error }, 502);
     }
 
-    const admin = createClient(supabaseUrl, serviceKey);
     const idProvedor = envio.providerId ?? `crm-${crypto.randomUUID()}`;
     const linha = {
       company_id: conversa.radar_company_id,
