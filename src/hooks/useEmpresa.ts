@@ -57,6 +57,9 @@ interface ConfigEmpresa {
     valor?: boolean;
     /** Origens a mais no cadastro do paciente, como "totalpass". */
     origens?: string[];
+    /** Campos do paciente que só a empresa que liga usa (a clínica). */
+    cpf?: boolean;
+    endereco?: boolean;
   };
   /** PDF do guia do CRM, aberto pelo menu. */
   guia_url?: string;

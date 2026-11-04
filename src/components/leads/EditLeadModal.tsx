@@ -3,6 +3,7 @@ import { useConfig, useOrigens, useVocabulario } from '@/hooks/useEmpresa';
 import { X, Loader2 } from 'lucide-react';
 import { Lead, LeadSource } from '@/types/crm';
 import { Button } from '@/components/ui/button';
+import { cpfValido, formatarCpf } from '@/lib/cpf';
 
 interface EditLeadModalProps {
   isOpen: boolean;
@@ -16,6 +17,8 @@ interface EditLeadModalProps {
     company?: string | null;
     source: LeadSource;
     value?: number | null;
+    cpf?: string | null;
+    endereco?: string | null;
   }) => void;
   isLoading?: boolean;
 }
@@ -49,9 +52,11 @@ export function EditLeadModal({ isOpen, onClose, lead, onSave, isLoading }: Edit
   const campos = useConfig().config.formulario;
   const comEmpresa = campos?.empresa !== false;
   const comValor = campos?.valor !== false;
+  const comCpf = campos?.cpf === true;
+  const comEndereco = campos?.endereco === true;
   const origens = useOrigens();
   const [form, setForm] = useState({
-    name: '', email: '', phone: '', company: '', source: 'website' as LeadSource, value: '',
+    name: '', email: '', phone: '', company: '', source: 'website' as LeadSource, value: '', cpf: '', endereco: '',
   });
 
   useEffect(() => {
@@ -63,6 +68,8 @@ export function EditLeadModal({ isOpen, onClose, lead, onSave, isLoading }: Edit
         company: lead.company || '',
         source: lead.source,
         value: currencyFromNumber(lead.value),
+        cpf: formatarCpf(lead.cpf || ''),
+        endereco: lead.endereco || '',
       });
     }
   }, [lead]);
@@ -79,6 +86,8 @@ export function EditLeadModal({ isOpen, onClose, lead, onSave, isLoading }: Edit
       company: form.company || null,
       source: form.source,
       value: form.value ? parseCurrency(form.value) : null,
+      ...(comCpf ? { cpf: form.cpf.replace(/\D/g, '') || null } : {}),
+      ...(comEndereco ? { endereco: form.endereco.trim() || null } : {}),
     });
   };
 
@@ -106,6 +115,19 @@ export function EditLeadModal({ isOpen, onClose, lead, onSave, isLoading }: Edit
               <label className="block text-sm font-medium text-foreground mb-2">Telefone *</label>
               <input type="tel" required value={form.phone} onChange={(e) => setForm({ ...form, phone: formatPhone(e.target.value) })} className="input-field" disabled={isLoading} />
             </div>
+            {comCpf && (
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-foreground mb-2">CPF <span className="font-normal text-muted-foreground">(opcional)</span></label>
+              <input type="text" inputMode="numeric" value={form.cpf} onChange={(e) => setForm({ ...form, cpf: formatarCpf(e.target.value) })} className="input-field" placeholder="000.000.000-00" disabled={isLoading} />
+              {form.cpf && !cpfValido(form.cpf) && <p className="mt-1 text-xs text-amber-700">CPF a conferir: os números não fecham.</p>}
+            </div>
+            )}
+            {comEndereco && (
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-foreground mb-2">Endereço <span className="font-normal text-muted-foreground">(opcional)</span></label>
+              <input type="text" value={form.endereco} onChange={(e) => setForm({ ...form, endereco: e.target.value })} className="input-field" placeholder="Rua, número, bairro" disabled={isLoading} />
+            </div>
+            )}
             {comEmpresa && (
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">Empresa</label>

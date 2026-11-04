@@ -65,6 +65,8 @@ export default function Funnel() {
     source: LeadSource;
     value?: number;
     unidade?: string;
+    cpf?: string;
+    endereco?: string;
   }) => {
     createLead.mutate(leadData, {
       onSuccess: () => setIsModalOpen(false),

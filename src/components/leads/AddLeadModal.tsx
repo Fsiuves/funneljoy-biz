@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useEquipe } from '@/hooks/useAtendimento';
 import { useUnidadesDaEmpresa } from '@/hooks/useAgenda';
 import { useUpdateLead } from '@/hooks/useLeads';
+import { cpfValido, formatarCpf } from '@/lib/cpf';
 import { toast } from '@/hooks/use-toast';
 import { X, Loader2, AlertTriangle } from 'lucide-react';
 import { Lead, LeadSource } from '@/types/crm';
@@ -20,6 +21,8 @@ interface AddLeadModalProps {
     source: LeadSource;
     value?: number;
     unidade?: string;
+    cpf?: string;
+    endereco?: string;
   }) => void;
   isLoading?: boolean;
   existingLeads?: Lead[];
@@ -75,6 +78,8 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
   const campos = useConfig().config.formulario;
   const comEmpresa = campos?.empresa !== false;
   const comValor = campos?.valor !== false;
+  const comCpf = campos?.cpf === true;
+  const comEndereco = campos?.endereco === true;
   const origens = useOrigens();
   // Quem não tem unidade (gerente, direção) escolhe a do paciente: sem isso ele
   // ficava sem unidade, aparecia nas duas e nenhuma atendente conseguia agendar.
@@ -91,6 +96,8 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
     company: '',
     source: 'website' as LeadSource,
     value: '',
+    cpf: '',
+    endereco: '',
   });
   const [forceCreate, setForceCreate] = useState(false);
   const atualizar = useUpdateLead();
@@ -128,6 +135,8 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
       company: '',
       source: 'website',
       value: '',
+      cpf: '',
+      endereco: '',
     });
     setForceCreate(false);
   };
@@ -139,10 +148,14 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
   const completarExistente = async (existente: Lead) => {
     const nome = formData.name.trim();
     const email = formData.email.trim();
+    const cpf = formData.cpf.replace(/\D/g, '');
+    const endereco = formData.endereco.trim();
     await atualizar.mutateAsync({
       id: existente.id,
       ...(nome ? { name: nome } : {}),
       ...(email ? { email } : {}),
+      ...(cpf ? { cpf } : {}),
+      ...(endereco ? { endereco } : {}),
       ...(formData.source !== 'website' ? { source: formData.source } : {}),
     });
     toast({ title: `Cadastro de ${nome || existente.name} atualizado` });
@@ -165,6 +178,8 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
       phone: formData.phone.replace(/\D/g, ''), // Send only numbers
       company: formData.company || undefined,
       value: numericValue,
+      cpf: formData.cpf.replace(/\D/g, '') || undefined,
+      endereco: formData.endereco.trim() || undefined,
       unidade: pedeUnidade ? unidade : undefined,
     });
     limpar();
@@ -256,6 +271,42 @@ export function AddLeadModal({ isOpen, onClose, onAdd, isLoading, existingLeads 
                 onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                 className="input-field"
                 placeholder="Nome da empresa"
+                disabled={isLoading}
+              />
+            </div>
+            )}
+
+            {comCpf && (
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
+                CPF <span className="font-normal text-muted-foreground">(opcional)</span>
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={formData.cpf}
+                onChange={(e) => setFormData({ ...formData, cpf: formatarCpf(e.target.value) })}
+                className="input-field"
+                placeholder="000.000.000-00"
+                disabled={isLoading}
+              />
+              {formData.cpf.length === 14 && !cpfValido(formData.cpf) && (
+                <p className="mt-1 text-xs text-amber-700">CPF inválido. Confira os números.</p>
+              )}
+            </div>
+            )}
+
+            {comEndereco && (
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Endereço <span className="font-normal text-muted-foreground">(opcional)</span>
+              </label>
+              <input
+                type="text"
+                value={formData.endereco}
+                onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
+                className="input-field"
+                placeholder="Rua, número, bairro"
                 disabled={isLoading}
               />
             </div>

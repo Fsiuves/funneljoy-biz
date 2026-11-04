@@ -24,6 +24,8 @@ interface LeadRow {
   tenant_id: string | null;
   notes?: string | null;
   unidade?: string | null;
+  cpf?: string | null;
+  endereco?: string | null;
 }
 
 const mapLeadFromDb = (row: LeadRow): Lead => ({
@@ -42,6 +44,8 @@ const mapLeadFromDb = (row: LeadRow): Lead => ({
   updatedAt: new Date(row.updated_at),
   notes: row.notes || undefined,
   unidade: row.unidade || undefined,
+  cpf: row.cpf || undefined,
+  endereco: row.endereco || undefined,
 });
 
 async function getUserTenantId(): Promise<string | null> {
@@ -114,6 +118,8 @@ export function useCreateLead() {
       source: LeadSource;
       value?: number;
       unidade?: string;
+      cpf?: string;
+      endereco?: string;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
@@ -130,6 +136,8 @@ export function useCreateLead() {
           company: lead.company || null,
           source: lead.source,
           value: lead.value || null,
+          cpf: lead.cpf || null,
+          endereco: lead.endereco || null,
           created_by: user.id,
           tenant_id: tenantId,
           // Sem unidade, o banco usa a de quem cadastra (atendente).
@@ -188,6 +196,8 @@ export function useUpdateLead() {
       company,
       source,
       value,
+      cpf,
+      endereco,
     }: {
       id: string;
       nextFollowUp?: Date | null;
@@ -198,6 +208,8 @@ export function useUpdateLead() {
       company?: string | null;
       source?: LeadSource;
       value?: number | null;
+      cpf?: string | null;
+      endereco?: string | null;
     }) => {
       const updateData: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
@@ -213,6 +225,8 @@ export function useUpdateLead() {
       if (company !== undefined) updateData.company = company;
       if (source !== undefined) updateData.source = source;
       if (value !== undefined) updateData.value = value;
+      if (cpf !== undefined) updateData.cpf = cpf;
+      if (endereco !== undefined) updateData.endereco = endereco;
 
       const { error } = await supabase
         .from('leads')

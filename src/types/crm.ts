@@ -36,6 +36,8 @@ export interface Lead {
   tags?: string[];
   notes?: string;
   unidade?: string;
+  cpf?: string;
+  endereco?: string;
 }
 
 export type LeadStepKey =

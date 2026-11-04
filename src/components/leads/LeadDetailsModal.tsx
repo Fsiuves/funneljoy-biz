@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useConfig, useEtapas, useVocabulario } from '@/hooks/useEmpresa';
-import { X, Loader2, Phone, MessageCircle, Mail, FileText, StickyNote, Building2 } from 'lucide-react';
+import { X, Loader2, Phone, MessageCircle, Mail, FileText, StickyNote, Building2, IdCard, MapPin } from 'lucide-react';
 import { Lead, LEAD_STEP_DEFS, LEAD_SOURCES, ActivityType } from '@/types/crm';
 import { Button } from '@/components/ui/button';
 import { useLeadSteps, useUpsertLeadStep } from '@/hooks/useLeadSteps';
@@ -9,6 +9,7 @@ import { useActivities, useCreateActivity } from '@/hooks/useActivities';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from '@/hooks/use-toast';
+import { cpfValido, formatarCpf } from '@/lib/cpf';
 
 interface Props {
   isOpen: boolean;
@@ -137,6 +138,13 @@ export function LeadDetailsModal({ isOpen, onClose, lead }: Props) {
             <div className="grid grid-cols-2 gap-3 text-sm">
               <p className="flex items-center gap-2 text-foreground"><Phone className="w-3.5 h-3.5 text-muted-foreground" /> {lead.phone}</p>
               {lead.email && <p className="flex items-center gap-2 text-foreground"><Mail className="w-3.5 h-3.5 text-muted-foreground" /> {lead.email}</p>}
+              {lead.cpf && (
+                <p className="flex items-center gap-2 text-foreground">
+                  <IdCard className="w-3.5 h-3.5 text-muted-foreground" /> {formatarCpf(lead.cpf)}
+                  {!cpfValido(lead.cpf) && <span className="text-xs text-amber-700">a conferir</span>}
+                </p>
+              )}
+              {lead.endereco && <p className="flex items-center gap-2 text-foreground"><MapPin className="w-3.5 h-3.5 text-muted-foreground" /> {lead.endereco}</p>}
               <p className="text-muted-foreground">Origem: <span className="text-foreground">{sourceLabel}</span></p>
               <p className="text-muted-foreground">Etapa: <span className="text-foreground">{stageLabel}</span></p>
             </div>

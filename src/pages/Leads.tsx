@@ -25,6 +25,7 @@ export default function Leads() {
   // (cada linha entrava com atraso pela posição). Mostra 100 por vez; a busca procura em todos.
   const [limite, setLimite] = useState(100);
   const comEmpresa = useConfig().config.formulario?.empresa !== false;
+  const comCpf = useConfig().config.formulario?.cpf === true;
   const { data: papel } = useMeuPapel();
   const podeExcluir = papel === 'admin' || papel === 'manager';
   const [detailsLead, setDetailsLead] = useState<Lead | null>(null);
@@ -50,7 +51,8 @@ export default function Leads() {
       (lead.email && lead.email.toLowerCase().includes(term)) ||
       (lead.company && lead.company.toLowerCase().includes(term)) ||
       // Pelo fim do número, sem a formatação: acha com ou sem 55 e com ou sem o 9.
-      (phoneDigits.length >= 3 && lead.phone.replace(/\D/g, '').includes(phoneDigits.length >= 8 ? phoneDigits.slice(-8) : phoneDigits))
+      (phoneDigits.length >= 3 && lead.phone.replace(/\D/g, '').includes(phoneDigits.length >= 8 ? phoneDigits.slice(-8) : phoneDigits)) ||
+      (phoneDigits.length >= 3 && lead.cpf?.includes(phoneDigits))
     );
   });
 
@@ -62,6 +64,8 @@ export default function Leads() {
     source: LeadSource;
     value?: number;
     unidade?: string;
+    cpf?: string;
+    endereco?: string;
   }) => {
     createLead.mutate(leadData, {
       onSuccess: () => setIsModalOpen(false),
@@ -129,7 +133,7 @@ export default function Leads() {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
           type="text"
-          placeholder={comEmpresa ? 'Buscar por nome, telefone, empresa...' : 'Buscar por nome ou telefone...'}
+          placeholder={comEmpresa ? 'Buscar por nome, telefone, empresa...' : comCpf ? 'Buscar por nome, telefone ou CPF...' : 'Buscar por nome ou telefone...'}
           value={searchTerm}
           onChange={(e) => {
             setSearchTerm(e.target.value);
