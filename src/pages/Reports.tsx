@@ -2,14 +2,15 @@ import { ErroAoCarregar } from '@/components/ErroAoCarregar';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { MetricCard } from '@/components/dashboard/MetricCard';
-import { useLeads } from '@/hooks/useLeads';
+import { ehDaBase, useLeads } from '@/hooks/useLeads';
 import { useEtapas, useOrigens, useVocabulario } from '@/hooks/useEmpresa';
 import { Users, TrendingUp, Target, DollarSign, Loader2 } from 'lucide-react';
 
 export default function Reports() {
   const { etapas, ehGanho, estaAberta } = useEtapas();
   const v = useVocabulario();
-  const { data: leads = [], isLoading, isError, isFetching, refetch } = useLeads();
+  const { data: todos = [], isLoading, isError, isFetching, refetch } = useLeads();
+  const leads = todos.filter((l) => !ehDaBase(l));
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {

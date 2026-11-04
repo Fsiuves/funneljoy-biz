@@ -51,6 +51,15 @@ async function getUserTenantId(): Promise<string | null> {
   return minhaEmpresaId(user.id);
 }
 
+/**
+ * Clientes importados do cadastro da clínica (04/11/2026, 5.271 pessoas). Já eram
+ * clientes: contá-los como "Fechou plano" levava a conversão do Dashboard para
+ * perto de 90% e lotava o funil. Ficam em Pacientes e fora do funil e dos números.
+ * Quem volta a agendar muda de etapa e entra no funil normalmente.
+ */
+export const TAG_BASE = 'Base da clínica';
+export const ehDaBase = (lead: Lead) => lead.stage === 'fechou_plano' && !!lead.tags?.includes(TAG_BASE);
+
 export function useLeads() {
   return useQuery({
     queryKey: ['leads'],

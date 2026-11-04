@@ -9,14 +9,15 @@ import { Header } from '@/components/layout/Header';
 import { KanbanBoard } from '@/components/leads/KanbanBoard';
 import { AddLeadModal } from '@/components/leads/AddLeadModal';
 import { LeadDetailsModal } from '@/components/leads/LeadDetailsModal';
-import { useLeads, useCreateLead, useUpdateLeadStage } from '@/hooks/useLeads';
+import { ehDaBase, useLeads, useCreateLead, useUpdateLeadStage } from '@/hooks/useLeads';
 import { Lead, LeadStage, LeadSource } from '@/types/crm';
 import { Loader2 } from 'lucide-react';
 
 export default function Funnel() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const { data: leads = [], isLoading, isError, isFetching, refetch } = useLeads();
+  const { data: todos = [], isLoading, isError, isFetching, refetch } = useLeads();
+  const leads = todos.filter((l) => !ehDaBase(l));
   const createLead = useCreateLead();
   const updateStage = useUpdateLeadStage();
   const v = useVocabulario();
@@ -116,7 +117,7 @@ export default function Funnel() {
         onClose={() => setIsModalOpen(false)}
         onAdd={handleAddLead}
         isLoading={createLead.isPending}
-        existingLeads={leads}
+        existingLeads={todos}
       />
 
       <MudarEtapaDialog

@@ -6,14 +6,15 @@ import { MetricCard } from '@/components/dashboard/MetricCard';
 import { FunnelChart } from '@/components/dashboard/FunnelChart';
 import { RecentLeads } from '@/components/dashboard/RecentLeads';
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed';
-import { useLeads } from '@/hooks/useLeads';
+import { ehDaBase, useLeads } from '@/hooks/useLeads';
 import { useActivities } from '@/hooks/useActivities';
 import { Users, TrendingUp, Clock, DollarSign, UserPlus, Target, Loader2 } from 'lucide-react';
 
 export default function Dashboard() {
   const { ehGanho, estaAberta } = useEtapas();
   const v = useVocabulario();
-  const { data: leads = [], isLoading: leadsLoading, isError: erroLeads, isFetching: buscandoLeads, refetch: buscarLeads } = useLeads();
+  const { data: todos = [], isLoading: leadsLoading, isError: erroLeads, isFetching: buscandoLeads, refetch: buscarLeads } = useLeads();
+  const leads = todos.filter((l) => !ehDaBase(l));
   const { data: activities = [], isLoading: activitiesLoading } = useActivities();
 
   const formatCurrency = (value: number) => {
