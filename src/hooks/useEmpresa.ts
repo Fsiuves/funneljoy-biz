@@ -11,7 +11,7 @@ import { useAuth } from './useAuth';
 
 const crm = supabase as any;
 
-export type TipoEtapa = 'aberta' | 'ganho' | 'perdido';
+export type TipoEtapa = 'aberta' | 'ganho' | 'perdido' | 'base';
 
 export interface Etapa {
   value: string;
@@ -113,10 +113,13 @@ export function useOrigens() {
 
 export function useEtapas() {
   const { data, isLoading } = useConfigEmpresa();
-  const etapas: Etapa[] = data?.etapas.length
+  const todas: Etapa[] = data?.etapas.length
     ? data.etapas.map((e) => ({ value: e.chave, label: e.rotulo, cor: e.cor, tipo: e.tipo }))
     : ETAPAS_PADRAO;
-  const porChave = new Map(etapas.map((e) => [e.value, e]));
+  // Tipo base é a situação de quem já era cliente ("Cliente da base"): tem rótulo, mas
+  // não é etapa do funil, então não vira coluna, opção nem linha de relatório.
+  const etapas = todas.filter((e) => e.tipo !== 'base');
+  const porChave = new Map(todas.map((e) => [e.value, e]));
 
   return {
     etapas,

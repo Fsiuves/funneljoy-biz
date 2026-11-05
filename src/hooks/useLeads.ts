@@ -56,13 +56,12 @@ async function getUserTenantId(): Promise<string | null> {
 }
 
 /**
- * Clientes importados do cadastro da clínica (04/11/2026, 5.271 pessoas). Já eram
- * clientes: contá-los como "Fechou plano" levava a conversão do Dashboard para
- * perto de 90% e lotava o funil. Ficam em Pacientes e fora do funil e dos números.
- * Quem volta a agendar muda de etapa e entra no funil normalmente.
+ * Clientes importados do cadastro da clínica (04/11/2026, 5.271 pessoas): situação
+ * própria, "Cliente da base" (Radar/fase3-inbox/41-cliente-da-base.sql). Já eram
+ * clientes: contá-los levava a conversão do Dashboard para perto de 90%. Ficam em
+ * Pacientes e fora do funil e dos números. Quem agenda muda de etapa e entra no funil.
  */
-export const TAG_BASE = 'Base da clínica';
-export const ehDaBase = (lead: Lead) => lead.stage === 'fechou_plano' && !!lead.tags?.includes(TAG_BASE);
+export const ehDaBase = (lead: Lead) => lead.stage === 'cliente_base';
 
 export function useLeads() {
   return useQuery({
