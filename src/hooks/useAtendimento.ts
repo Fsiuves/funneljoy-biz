@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { QueryClient, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { buscarTudo } from '@/lib/buscarTudo';
 import { useAuth } from './useAuth';
@@ -86,6 +86,9 @@ const ERROS: Record<string, string> = {
   dados_invalidos: 'Mensagem vazia.',
   midia_indisponivel: 'Não foi possível abrir esta mídia.',
   arquivo_grande: 'Arquivo grande demais: até 10 MB.',
+  telefone_invalido: 'Confira o número: DDD e telefone. Número de fora do Brasil vai com +.',
+  sem_whatsapp: 'Esse número não tem WhatsApp.',
+  escolha_unidade: 'Escolha por qual unidade iniciar a conversa.',
 };
 
 async function erroDaFuncao(error: any, data: any): Promise<string> {
@@ -222,9 +225,10 @@ function comMudancasRecentes(lista: Conversa[]): Conversa[] {
 }
 
 /**
- * A lista traz as 500 conversas mais recentes (são 1.800 na clínica). A busca
- * com 3 letras ou mais procura também no servidor: nome, ou o fim do telefone
- * (8 últimos dígitos, que achem o número com ou sem o 9).
+ * A lista traz as 500 conversas mais recentes (são 2.200 na clínica). A busca
+ * com 3 letras ou mais procura também no servidor: nome no WhatsApp ou no cadastro,
+ * aceitando grafia diferente (crm.buscar_conversas), ou o fim do telefone (8 últimos
+ * dígitos, que achem o número com ou sem o 9).
  */
 export function useBuscaConversas(busca: string, ativo = true) {
   const termo = busca.trim();
@@ -234,13 +238,12 @@ export function useBuscaConversas(busca: string, ativo = true) {
     enabled: ativo && termo.length >= 3,
     staleTime: 30_000,
     queryFn: async () => {
-      let consulta = crm.from('conversations').select('*')
-        .order('last_message_at', { ascending: false, nullsFirst: false })
-        .limit(50);
-      consulta = digitos.length >= 4
-        ? consulta.like('phone', `%${digitos.slice(-8)}%`)
-        : consulta.ilike('contact_name', `%${termo.replace(/[%_]/g, '')}%`);
-      const { data, error } = await consulta;
+      const { data, error } = digitos.length >= 4
+        ? await crm.from('conversations').select('*')
+            .order('last_message_at', { ascending: false, nullsFirst: false })
+            .limit(50)
+            .like('phone', `%${digitos.slice(-8)}%`)
+        : await crm.rpc('buscar_conversas', { _termo: termo });
       if (error) throw error;
       return (data ?? []) as Conversa[];
     },
@@ -293,6 +296,46 @@ export function useConversas(ativo = true) {
       if (error) throw error;
       return comMudancasRecentes((data ?? []) as Conversa[]);
     },
+  });
+}
+
+const POR_PAGINA = 500;
+
+/**
+ * Conversas além das 500 da lista, de 500 em 500, ao chegar no fim da lista: a de número
+ * 500 tem só 2 dias, e as anteriores pareciam ter sumido (reunião de 05/11). Fora da
+ * lista principal para ela seguir leve; só busca quando a tela pede.
+ */
+export function useConversasAntigas() {
+  return useInfiniteQuery({
+    queryKey: ['conversas', 'antigas'],
+    enabled: false,
+    initialPageParam: POR_PAGINA,
+    queryFn: async ({ pageParam }) => {
+      const { data, error } = await crm
+        .from('conversations')
+        .select('*')
+        .order('last_message_at', { ascending: false, nullsFirst: false })
+        .order('id')
+        .range(pageParam, pageParam + POR_PAGINA - 1);
+      if (error) throw error;
+      return (data ?? []) as Conversa[];
+    },
+    getNextPageParam: (ultima: Conversa[], _todas, pagina: number) =>
+      (ultima.length === POR_PAGINA ? pagina + POR_PAGINA : undefined),
+  });
+}
+
+/** Inicia conversa com um número que ainda não tem conversa na unidade (função wa-iniciar). */
+export function useIniciarConversa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ telefone, unidade }: { telefone: string; unidade?: string }) => {
+      const { data, error } = await supabase.functions.invoke('wa-iniciar', { body: { telefone, unidade } });
+      if (error || data?.error) throw new Error(await erroDaFuncao(error, data));
+      return data as { conversation_id: string };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['conversas'], exact: true }),
   });
 }
 
@@ -399,7 +442,9 @@ export function useMensagens(conversa: Conversa | null) {
         .order('created_at', { ascending: false })
         .limit(300);
       if (error) throw error;
-      return emOrdem((data ?? []) as Mensagem[]);
+      // A "enviando" fica: voltar para a conversa no meio do envio apagava o balão.
+      const tela = qc.getQueryData<Mensagem[]>(['mensagens', conversa!.id]) ?? [];
+      return juntarMensagens(tela.filter((m) => m.pendente), (data ?? []) as Mensagem[]);
     },
   });
 

@@ -248,17 +248,47 @@ function useGravador(aoTerminar: (arquivo: Blob, mimetype: string, extensao: str
   return { segundos, comecar, parar };
 }
 
+// Uma fila por conversa: era uma só, e uma mensagem lenta para um paciente segurava
+// as dos outros (reunião de 05/11). Fora do componente para sobreviver ao fechar a conversa.
+const filasDeEnvio = new Map<string, Promise<void>>();
+
+// Rascunho de cada conversa, nesta aba: some ao fechar a aba, porque o computador
+// da recepção é de uso comum.
+const CHAVE_RASCUNHOS = 'crm-rascunhos';
+function lerRascunhos(): Record<string, string> {
+  try {
+    return JSON.parse(sessionStorage.getItem(CHAVE_RASCUNHOS) ?? '{}');
+  } catch {
+    return {};
+  }
+}
+const rascunhoDe = (id: string) => lerRascunhos()[id] ?? '';
+function guardarRascunho(id: string, texto: string) {
+  try {
+    const todos = lerRascunhos();
+    if (texto) todos[id] = texto;
+    else delete todos[id];
+    sessionStorage.setItem(CHAVE_RASCUNHOS, JSON.stringify(todos));
+  } catch {
+    // Sem armazenamento, só não guarda.
+  }
+}
+
 function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undefined }) {
-  const [texto, setTexto] = useState('');
+  const [texto, setTexto] = useState(() => rascunhoDe(conversa.id));
   const [listaAberta, setListaAberta] = useState(false);
   const [indice, setIndice] = useState(0);
   const [anexo, setAnexo] = useState<AnexoNaCaixa | null>(null);
   const campo = useRef<HTMLTextAreaElement>(null);
   const qc = useQueryClient();
-  // Envios saem um depois do outro, na ordem em que foram digitados.
-  const fila = useRef<Promise<void>>(Promise.resolve());
   const conversaAtual = useRef(conversa.id);
   conversaAtual.current = conversa.id;
+  const montada = useRef(true);
+  useEffect(() => {
+    montada.current = true;
+    return () => { montada.current = false; };
+  }, []);
+  const donoDoTexto = useRef(conversa.id);
   const seletor = useRef<HTMLInputElement>(null);
   const enviar = useEnviarMensagem();
   const { data: regras } = useRegrasAtendimento();
@@ -277,15 +307,17 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
   // A prévia é um endereço local do arquivo: solta quando o anexo sai.
   useEffect(() => () => { if (anexo) URL.revokeObjectURL(anexo.previa); }, [anexo]);
 
-  // Rascunho, anexo e gravação somem ao trocar de conversa: o áudio não pode
-  // cair no paciente seguinte.
+  // O rascunho fica guardado na conversa dele. Anexo e gravação somem ao trocar de
+  // conversa: o áudio não pode cair no paciente seguinte.
   useEffect(() => {
-    setTexto('');
+    donoDoTexto.current = conversa.id;
+    setTexto(rascunhoDe(conversa.id));
     setListaAberta(false);
     setAnexo(null);
     gravacao.parar(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversa.id]);
+  useEffect(() => { guardarRascunho(donoDoTexto.current, texto); }, [texto]);
 
   const daUnidade = useMemo(
     () => respostas.filter((r) => !r.unidade || r.unidade === conversa.unidade),
@@ -334,7 +366,8 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
     setTexto('');
     setAnexo(null);
 
-    fila.current = fila.current.then(async () => {
+    // Na mesma conversa, as mensagens saem na ordem em que foram digitadas.
+    const proxima = (filasDeEnvio.get(conv.id) ?? Promise.resolve()).then(async () => {
       let anexoSaiu = false;
       try {
         if (doAnexo && pendenteAnexo) {
@@ -351,13 +384,20 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
       } catch (e) {
         // O que já saiu fica; só o que falhou volta (o áudio ia de novo no reenvio).
         [anexoSaiu ? null : pendenteAnexo, pendenteTexto].forEach((id) => id && removerPendente(qc, conv.id, id));
-        toast.error(mensagemDeErro(e));
-        // Devolve o que não saiu, se a pessoa ainda está na mesma conversa e com a caixa vazia.
-        if (conversaAtual.current === conv.id) {
+        const aqui = montada.current && conversaAtual.current === conv.id;
+        toast.error(aqui ? mensagemDeErro(e) : `Não enviada para ${conv.contact_name || conv.phone}: ${mensagemDeErro(e)}`);
+        // Devolve o que não saiu para a caixa; quem já trocou de conversa acha no rascunho dela.
+        if (aqui) {
           if (corpo) setTexto((atual) => atual || corpo);
           if (doAnexo && !anexoSaiu) setAnexo((atual) => atual ?? { ...doAnexo, previa: URL.createObjectURL(doAnexo.arquivo) });
+        } else if (corpo && !rascunhoDe(conv.id)) {
+          guardarRascunho(conv.id, corpo);
         }
       }
+    });
+    filasDeEnvio.set(conv.id, proxima);
+    void proxima.finally(() => {
+      if (filasDeEnvio.get(conv.id) === proxima) filasDeEnvio.delete(conv.id);
     });
   };
 

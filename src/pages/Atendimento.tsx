@@ -11,9 +11,11 @@ import {
 } from '@/components/ui/select';
 import { useAuth } from '@/hooks/useAuth';
 import { avisarConversaAberta } from '@/lib/presenca';
+import { chaveNome } from '@/lib/busca';
+import { toast } from 'sonner';
 import {
   useAtualizarConversa, useConversas, useEquipe, useModulosAtivos, useAnunciosDeOrigem, origemDaConversa, descreverOrigem,
-  useBuscaConversas, useConversaPorId,
+  useBuscaConversas, useConversaPorId, useConversasAntigas, useIniciarConversa,
   type Conversa,
 } from '@/hooks/useAtendimento';
 import { CornerUpLeft, Loader2, Megaphone, MessageCircle, Search, Smartphone } from 'lucide-react';
@@ -112,11 +114,14 @@ export default function Atendimento() {
   const [conectar, setConectar] = useState(false);
 
   // Conversas antigas, fora das 500 da lista: as achadas na busca e a do ?conversa=.
-  const { data: achadas = [] } = useBuscaConversas(busca, liberado);
+  const { data: achadas = [], isFetching: buscando } = useBuscaConversas(busca, liberado);
+  const antigas = useConversasAntigas();
+  const paginasAntigas = antigas.data?.pages;
+  const iniciar = useIniciarConversa();
   const naLista = recentes.some((c) => c.id === abertaId);
   const { data: avulsa } = useConversaPorId(abertaId, liberado && !carregandoConversas && !naLista);
   const conversas = useMemo(() => {
-    const extras = [...achadas, ...(avulsa ? [avulsa] : [])];
+    const extras = [...achadas, ...(paginasAntigas?.flat() ?? []), ...(avulsa ? [avulsa] : [])];
     if (!extras.length) return recentes;
     const ids = new Set(recentes.map((c) => c.id));
     const novas: Conversa[] = [];
@@ -126,7 +131,7 @@ export default function Atendimento() {
       novas.push(c);
     }
     return novas.length ? [...recentes, ...novas] : recentes;
-  }, [recentes, achadas, avulsa]);
+  }, [recentes, achadas, paginasAntigas, avulsa]);
 
   const eu = equipe.find((p) => p.id === user?.id);
   const nomes = useMemo(() => new Map(equipe.map((p) => [p.id, p.name || p.email])), [equipe]);
@@ -147,8 +152,9 @@ export default function Atendimento() {
   }, [conversas, unidade, user?.id]);
 
   const lista = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
+    const termo = chaveNome(busca.trim());
     const digitos = busca.replace(/\D/g, '');
+    const noServidor = new Set(achadas.map((c) => c.id));
     return conversas.filter((c) => {
       if (!naUnidade(c)) return false;
       // Buscando, vale qualquer aba: quem procura um nome não sabe se a conversa
@@ -159,15 +165,55 @@ export default function Atendimento() {
         if (fila === 'sem' && c.assigned_to) return false;
       }
       if (termo) {
-        const nome = (c.contact_name ?? '').toLowerCase();
+        const nome = chaveNome(c.contact_name ?? '');
         // Pelo fim do número: acha com ou sem o 9 e com ou sem o 55.
         const fim = digitos.length >= 8 ? digitos.slice(-8) : digitos;
-        if (!nome.includes(termo) && !(digitos.length >= 3 && c.phone.includes(fim))) return false;
+        // A busca do servidor também olha o nome do cadastro, que a lista não tem.
+        if (!nome.includes(termo) && !(digitos.length >= 3 && c.phone.includes(fim)) && !noServidor.has(c.id)) return false;
       }
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversas, resolvidas, unidade, fila, busca, user?.id]);
+  }, [conversas, achadas, resolvidas, unidade, fila, busca, user?.id]);
+
+  // Fim da lista à vista: busca as próximas 500. Em fila com poucas conversas, segue
+  // buscando até encher a tela ou acabar.
+  const fimDaLista = useRef<HTMLDivElement>(null);
+  const temMaisConversas = recentes.length >= 500 && (!paginasAntigas || antigas.hasNextPage);
+  useEffect(() => {
+    const alvo = fimDaLista.current;
+    if (!alvo || !temMaisConversas) return;
+    const observador = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !antigas.isFetching) void antigas.fetchNextPage();
+    });
+    observador.observe(alvo);
+    return () => observador.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [temMaisConversas, paginasAntigas?.length, antigas.isFetching]);
+
+  // ESC fecha a conversa e volta para a lista, como no WhatsApp. O rascunho fica guardado.
+  useEffect(() => {
+    const aoTeclar = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if (document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]')) return;
+      setAbertaId(null);
+    };
+    window.addEventListener('keydown', aoTeclar);
+    return () => window.removeEventListener('keydown', aoTeclar);
+  }, []);
+
+  // Número digitado que não tem conversa: dá para iniciar por aqui, como no WhatsApp.
+  const numeroNovo = busca.replace(/\D/g, '').length >= 10 && lista.length === 0 && !buscando;
+  const opcoesDeUnidade = unidade !== TODAS ? [unidade] : unidades;
+  const iniciarConversa = async (uni: string) => {
+    try {
+      const { conversation_id } = await iniciar.mutateAsync({ telefone: busca.trim(), unidade: uni });
+      setBusca('');
+      setAbertaId(conversation_id);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Não foi possível iniciar a conversa.');
+    }
+  };
 
   const aberta = conversas.find((c) => c.id === abertaId) ?? null;
 
@@ -316,7 +362,20 @@ export default function Atendimento() {
             )}
 
             {!isLoading && conversas.length > 0 && lista.length === 0 && (
-              <p className="px-6 py-10 text-center text-sm text-muted-foreground">Nada nesta fila.</p>
+              numeroNovo ? (
+                <div className="px-6 py-10 text-center">
+                  <p className="text-sm text-muted-foreground">Nenhuma conversa com esse número.</p>
+                  <div className="mt-3 flex flex-wrap justify-center gap-2">
+                    {opcoesDeUnidade.map((u) => (
+                      <Button key={u} size="sm" disabled={iniciar.isPending} onClick={() => void iniciarConversa(u)}>
+                        {opcoesDeUnidade.length > 1 ? `Iniciar pela ${u}` : 'Iniciar conversa'}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="px-6 py-10 text-center text-sm text-muted-foreground">Nada nesta fila.</p>
+              )
             )}
 
             {lista.map((c) => (
@@ -330,6 +389,14 @@ export default function Atendimento() {
                 aoAbrir={setAbertaId}
               />
             ))}
+
+            {temMaisConversas && !busca.trim() && (
+              <div ref={fimDaLista} className="py-3 text-center text-xs text-muted-foreground">
+                {antigas.isFetching ? 'Carregando conversas…' : (
+                  <button type="button" className="underline" onClick={() => void antigas.fetchNextPage()}>Carregar mais conversas</button>
+                )}
+              </div>
+            )}
           </div>
         </aside>
 

@@ -11,6 +11,7 @@ import { Lead, LeadSource, LEAD_SOURCES } from '@/types/crm';
 import { useConfig, useEtapas, useMeuPapel, useVocabulario } from '@/hooks/useEmpresa';
 import { Phone, Mail, Building2, MoreHorizontal, Eye, Edit, Trash2, Loader2, Search, ArrowRightLeft } from 'lucide-react';
 import { MudarEtapaDialog } from '@/components/leads/MudarEtapaDialog';
+import { chaveNome } from '@/lib/busca';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -45,9 +46,10 @@ export default function Leads() {
   const filteredLeads = leads.filter((lead) => {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
+    const chave = chaveNome(searchTerm);
     const phoneDigits = searchTerm.replace(/\D/g, '');
     return (
-      lead.name.toLowerCase().includes(term) ||
+      chaveNome(lead.name).includes(chave) ||
       (lead.email && lead.email.toLowerCase().includes(term)) ||
       (lead.company && lead.company.toLowerCase().includes(term)) ||
       // Pelo fim do número, sem a formatação: acha com ou sem 55 e com ou sem o 9.

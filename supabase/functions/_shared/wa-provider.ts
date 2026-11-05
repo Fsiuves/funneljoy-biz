@@ -182,6 +182,32 @@ async function enviarEvolutionAnexo(cfg: WaConfig, phone: string, anexo: Anexo):
   return { ok: true, providerId: data?.key?.id ?? data?.id ?? undefined }
 }
 
+// POST {url}/chat/whatsappNumbers/{instance}  body { numbers: [...] }
+// Diz se o número tem WhatsApp e qual é o número real (com ou sem o nono dígito).
+export async function verificarNumero(
+  cfg: WaConfig,
+  numero: string,
+): Promise<{ ok: boolean; numero?: string; semResposta?: boolean; error?: string }> {
+  const base = evolutionBase(cfg)
+  if (cfg.provedor !== 'evolution' || !base) return { ok: false, error: 'Config Evolution incompleta (url/instance/apikey).' }
+  try {
+    const res = await fetch(`${base}/chat/whatsappNumbers/${encodeURIComponent(cfg.evolution_instance!)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: cfg.evolution_apikey! },
+      body: JSON.stringify({ numbers: [numero] }),
+      signal: AbortSignal.timeout(PRAZO_TEXTO_MS),
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { ok: false, error: `Evolution ${res.status}: ${JSON.stringify(data).slice(0, 300)}` }
+    const achado = Array.isArray(data) ? data[0] : null
+    const real = String(achado?.jid ?? '').split('@')[0]
+    return { ok: true, numero: achado?.exists && /^\d+$/.test(real) ? real : undefined }
+  } catch (e) {
+    const falha = falhaDeEnvio(e)
+    return { ok: false, semResposta: falha.semResposta, error: falha.error }
+  }
+}
+
 // Fecha a conexão do número e reconecta com a sessão guardada: não desconecta o
 // WhatsApp nem pede QR code. É o que destrava o processamento das mensagens
 // quando ele para (Lapa, 03/11). O código da Evolution 2.3.7 usa POST; a

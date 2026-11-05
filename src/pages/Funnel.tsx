@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { useEtapas, useVocabulario } from '@/hooks/useEmpresa';
 import { pedeData, pedeValor, useMudarEtapa } from '@/hooks/useAgenda';
 import { MudarEtapaDialog } from '@/components/leads/MudarEtapaDialog';
+import { chaveNome } from '@/lib/busca';
 import { ErroAoCarregar } from '@/components/ErroAoCarregar';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
@@ -49,11 +50,11 @@ export default function Funnel() {
     );
   };
 
-  const termo = busca.trim().toLowerCase();
+  const termo = chaveNome(busca.trim());
   const digitos = busca.replace(/\D/g, '');
   const visiveis = termo
     ? leads.filter((l) =>
-        (l.name ?? '').toLowerCase().includes(termo) ||
+        chaveNome(l.name ?? '').includes(termo) ||
         (digitos.length >= 3 && (l.phone ?? '').replace(/\D/g, '').includes(digitos)))
     : leads;
 
