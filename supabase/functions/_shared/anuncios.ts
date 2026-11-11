@@ -167,6 +167,26 @@ export async function sincronizarAnuncios(
       campanha_id: l.campaign_id, campanha: l.campaign_name, conjunto_id: l.adset_id, conjunto: l.adset_name,
       anuncio_id: l.ad_id, anuncio: l.ad_name, chegou_em: l.created_at, atualizado_em: new Date().toISOString(),
     }));
+    // O Vigia às vezes grava só o código do anúncio, sem os nomes (113 de 547 em
+    // 11/11/2026), e a conversa mostrava "Veio do anúncio sem nome". Completa pelo
+    // gasto, que tem os nomes. De 20 em 20 códigos, para não passar do limite de
+    // 1.000 linhas por consulta (um código tem uma linha por dia).
+    const semNome = [...new Set(origens.filter((o) => o.anuncio_id && (!o.anuncio || !o.campanha)).map((o) => o.anuncio_id))];
+    const nomes = new Map<string, any>();
+    for (let i = 0; i < semNome.length; i += 20) {
+      const { data } = await crm.from("anuncio_gasto")
+        .select("anuncio_id, anuncio, campanha, conjunto")
+        .eq("tenant_id", tenant).in("anuncio_id", semNome.slice(i, i + 20)).not("anuncio", "is", null)
+        .order("dia", { ascending: false });
+      for (const n of data ?? []) if (!nomes.has(n.anuncio_id)) nomes.set(n.anuncio_id, n);
+    }
+    for (const o of origens) {
+      const n = o.anuncio_id ? nomes.get(o.anuncio_id) : undefined;
+      if (!n) continue;
+      o.anuncio ||= n.anuncio;
+      o.campanha ||= n.campanha;
+      o.conjunto ||= n.conjunto;
+    }
     for (let i = 0; i < origens.length; i += 500) {
       const { error } = await crm.from("anuncio_origem").upsert(origens.slice(i, i + 500), { onConflict: "vigia_id" });
       if (error) throw new Error(error.message);
