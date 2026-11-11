@@ -68,11 +68,12 @@ export function configDaConta(conta: {
   }
 }
 
-// Mantém só dígitos; adiciona DDI 55 (BR) quando necessário.
+// Mantém só dígitos. O telefone da conversa já vem completo, com o código do país:
+// do próprio WhatsApp, ou da wa-iniciar, que pergunta o número real. Até 11/11/2026
+// somava 55 a número de até 11 dígitos, e a resposta para número de fora com 11
+// dígitos (+1 980..., +41 7..., +27 7...) ia para um número brasileiro que não existe.
 export function normalizarTelefone(p: string): string {
-  let d = (p || '').replace(/\D/g, '')
-  if (d.length <= 11) d = '55' + d
-  return d
+  return (p || '').replace(/\D/g, '')
 }
 
 // Resposta dentro da conversa. Na Cloud API só vale com a janela de 24h aberta;

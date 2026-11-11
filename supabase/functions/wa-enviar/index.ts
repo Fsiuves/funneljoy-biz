@@ -39,7 +39,17 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
       db: { schema: "crm" },
     });
+    // Tempo de cada etapa, numa linha de registro por envio (item 3 da reunião de 05/11).
+    const tempos: Record<string, number> = {};
+    let marca = performance.now();
+    const medir = (etapa: string) => {
+      const agora = performance.now();
+      tempos[etapa] = Math.round(agora - marca);
+      marca = agora;
+    };
+
     const { data: { user } } = await comoUsuario.auth.getUser();
+    medir("login");
     if (!user) return resposta({ error: "not_authenticated" }, 401);
 
     // anexo: { base64, mimetype, nome }. Com anexo, o texto vira a legenda
@@ -59,6 +69,7 @@ Deno.serve(async (req) => {
       .select("id, tenant_id, phone, radar_company_id, radar_lead_id, assigned_to, window_expires_at, wa_accounts(id, unidade, provedor, instancia, phone_number_id, ativo)")
       .eq("id", conversation_id)
       .maybeSingle();
+    medir("conversa");
     if (!conversa) return resposta({ error: "sem_acesso" }, 403);
 
     const conta = (conversa as any).wa_accounts;
@@ -77,6 +88,7 @@ Deno.serve(async (req) => {
           tipo, base64: anexo.base64, mimetype: anexo.mimetype, nome: anexo.nome ?? null, legenda,
         })
       : await enviarResposta(configDaConta(conta), conversa.phone, corpo);
+    medir("whatsapp");
     const admin = createClient(supabaseUrl, serviceKey);
     if (!envio.ok && envio.semResposta) {
       // Processamento do número travado na Evolution (Lapa, 03/11: 52 min sem
@@ -151,6 +163,8 @@ Deno.serve(async (req) => {
         .eq("id", conversa.id)
         .is("assigned_to", null);
     }
+    medir("gravar");
+    console.log("[wa-enviar] tempos", JSON.stringify({ tipo: tipo ?? "texto", unidade: conta.unidade ?? null, ...tempos }));
 
     return resposta({ ok: true, registrada, message_id: gravada?.id ?? null });
   } catch (err) {
