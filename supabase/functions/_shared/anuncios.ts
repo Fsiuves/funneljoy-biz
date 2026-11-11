@@ -5,7 +5,7 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const VIGIA_URL = "https://jhucmbxuyflurzbubegw.supabase.co/rest/v1";
 const META_API = "https://graph.facebook.com/v21.0";
-const GOOGLE_API = "https://googleads.googleapis.com/v22";
+const GOOGLE_API = "https://googleads.googleapis.com/v26"; // v22 desligada pelo Google em 07/10/2026
 const CONVERSA_META = "onsite_conversion.messaging_conversation_started_7d";
 
 const semAcento = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -66,7 +66,13 @@ async function gastoGoogle(conta: string, token: string, de: string, ate: string
       body: JSON.stringify({ query, pageToken }),
     });
     const j = await r.json();
-    if (j.error) throw new Error(`google: ${j.error.message}`);
+    if (j.error) {
+      // A frase do Google é genérica ("Request contains an invalid argument"); o
+      // motivo de verdade vem em details[].errors[] (código e mensagem).
+      const motivos = (j.error.details ?? []).flatMap((d: any) => d.errors ?? [])
+        .map((e: any) => `${Object.values(e.errorCode ?? {}).join(",")}: ${e.message}`);
+      throw new Error(`google: ${j.error.message}${motivos.length ? ` (${motivos.join("; ")})` : ""}`);
+    }
     linhas.push(...(j.results ?? []));
     pageToken = j.nextPageToken;
   } while (pageToken);
