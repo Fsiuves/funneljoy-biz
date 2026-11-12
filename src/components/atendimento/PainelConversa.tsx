@@ -15,6 +15,7 @@ import {
   ROTULO_TIPO, useAgendarAvaliacao, useAvaliacaoAberta, useUnidadeDoPaciente, useUnidadesDaEmpresa,
 } from '@/hooks/useAgenda';
 import { useMeuPapel } from '@/hooks/useEmpresa';
+import { QuickRepliesModal } from '@/components/settings/QuickRepliesModal';
 import { Button } from '@/components/ui/button';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -24,7 +25,8 @@ import {
   useAtualizarConversa, useEnviarMensagem, useMensagens, useRespostasProntas, useRegrasAtendimento, assinarMensagem,
   lerAnexo, LIMITE_ANEXO, adicionarPendente, confirmarPendente, removerPendente, buscarNovasMensagens,
   useAnunciosDeOrigem, origemDaConversa, nomeCurtoCampanha, useColocarNoFunil, mensagemDeErro,
-  type Conversa, type Mensagem, type Pessoa,
+  baixarAnexoResposta, rotuloDoAnexo,
+  type AnexoResposta, type Conversa, type Mensagem, type Pessoa, type RespostaPronta,
 } from '@/hooks/useAtendimento';
 
 // ---------------------------------------------------------------- formato
@@ -79,7 +81,28 @@ const MIDIAS: Record<string, { rotulo: string; icone: typeof ImageIcon }> = {
 
 const BAIXAVEIS = new Set(['imageMessage', 'stickerMessage', 'audioMessage', 'videoMessage', 'documentMessage']);
 
-function MidiaSobDemanda({ m, deMim }: { m: Mensagem; deMim: boolean }) {
+// O que pode virar resposta pronta, com o nome do arquivo guardado (figurinha não).
+const GUARDAVEIS: Record<string, string> = {
+  audioMessage: 'audio', imageMessage: 'imagem', videoMessage: 'video', documentMessage: 'documento',
+};
+const EXTENSOES: Record<string, string> = {
+  'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/aac': 'aac', 'image/jpeg': 'jpg',
+  'image/png': 'png', 'image/webp': 'webp', 'video/mp4': 'mp4', 'application/pdf': 'pdf',
+};
+
+/** A mídia aberta vem como data URL (abrirMidia); o cadastro guarda o arquivo. */
+function arquivoDaMidia(url: string, mime: string, tipo: string): AnexoResposta {
+  const mimetype = mime.split(';')[0].trim() || 'application/octet-stream';
+  const binario = atob(url.slice(url.indexOf(',') + 1));
+  const bytes = new Uint8Array(binario.length);
+  for (let i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i);
+  const ext = EXTENSOES[mimetype] ?? ((mimetype.split('/')[1] ?? '').replace(/[^a-z0-9]/g, '').slice(0, 8) || 'bin');
+  return { arquivo: new Blob([bytes], { type: mimetype }), nome: `${GUARDAVEIS[tipo]}.${ext}`, mimetype };
+}
+
+function MidiaSobDemanda({ m, deMim, aoGuardar }: {
+  m: Mensagem; deMim: boolean; aoGuardar?: (anexo: AnexoResposta) => void;
+}) {
   const tipo = MIDIAS[m.message_type ?? ''];
   const [estado, setEstado] = useState<'fechada' | 'carregando' | 'aberta' | 'erro'>('fechada');
   const [url, setUrl] = useState<string | null>(null);
@@ -101,18 +124,42 @@ function MidiaSobDemanda({ m, deMim }: { m: Mensagem; deMim: boolean }) {
   };
 
   if (estado === 'aberta' && url) {
-    if (mime.startsWith('image/'))
-      return (
-        <a href={url} target="_blank" rel="noreferrer">
-          <img src={url} alt={tipo.rotulo} className="max-h-72 rounded-lg mb-1" />
-        </a>
-      );
-    if (mime.startsWith('audio/')) return <audio controls src={url} className="max-w-[260px] mb-1" />;
-    if (mime.startsWith('video/')) return <video controls src={url} className="max-h-72 rounded-lg mb-1" />;
-    return (
+    const conteudo = mime.startsWith('image/') ? (
+      <a href={url} target="_blank" rel="noreferrer">
+        <img src={url} alt={tipo.rotulo} className="max-h-72 rounded-lg mb-1" />
+      </a>
+    ) : mime.startsWith('audio/') ? (
+      <audio controls src={url} className="max-w-[260px] mb-1" />
+    ) : mime.startsWith('video/') ? (
+      <video controls src={url} className="max-h-72 rounded-lg mb-1" />
+    ) : (
       <a href={url} download={`arquivo-${m.id.slice(0, 8)}`} className="underline text-sm mb-1 inline-block">
         Baixar {tipo.rotulo.toLowerCase()}
       </a>
+    );
+    const tipoMsg = m.message_type ?? '';
+    if (!aoGuardar || !GUARDAVEIS[tipoMsg]) return conteudo;
+    // O áudio da avaliação, que a recepção encaminhava pelo celular, vira resposta
+    // pronta daqui mesmo, sem baixar arquivo (pedido da clínica em 12/11/2026).
+    const guardar = () => {
+      const anexo = arquivoDaMidia(url, mime, tipoMsg);
+      if (anexo.arquivo.size > LIMITE_ANEXO) {
+        toast.error('Arquivo grande demais para resposta pronta: até 10 MB.');
+        return;
+      }
+      aoGuardar(anexo);
+    };
+    return (
+      <>
+        {conteudo}
+        <button
+          type="button"
+          onClick={guardar}
+          className={`block text-[11px] underline mb-1 ${deMim ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}
+        >
+          Salvar como resposta pronta
+        </button>
+      </>
     );
   }
 
@@ -136,7 +183,9 @@ function MidiaSobDemanda({ m, deMim }: { m: Mensagem; deMim: boolean }) {
 
 // ---------------------------------------------------------------- balão
 
-function Balao({ m, autor }: { m: Mensagem; autor: string | null }) {
+function Balao({ m, autor, aoGuardar }: {
+  m: Mensagem; autor: string | null; aoGuardar?: (anexo: AnexoResposta) => void;
+}) {
   const deMim = m.is_from_me;
   const texto = m.body && m.body !== '[mídia]' ? m.body : null;
   const transcricao = m.message_type === 'audioMessage' && texto;
@@ -153,7 +202,7 @@ function Balao({ m, autor }: { m: Mensagem; autor: string | null }) {
             : 'bg-card text-foreground border border-border rounded-bl-md'
         }`}
       >
-        <MidiaSobDemanda m={m} deMim={deMim} />
+        <MidiaSobDemanda m={m} deMim={deMim} aoGuardar={aoGuardar} />
         {texto && (
           <p className="whitespace-pre-wrap break-words leading-relaxed">
             {transcricao && <span className="opacity-70 italic">Transcrição: </span>}
@@ -279,6 +328,7 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
   const [listaAberta, setListaAberta] = useState(false);
   const [indice, setIndice] = useState(0);
   const [anexo, setAnexo] = useState<AnexoNaCaixa | null>(null);
+  const [carregandoAnexo, setCarregandoAnexo] = useState(false);
   const campo = useRef<HTMLTextAreaElement>(null);
   const qc = useQueryClient();
   const conversaAtual = useRef(conversa.id);
@@ -314,6 +364,7 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
     setTexto(rascunhoDe(conversa.id));
     setListaAberta(false);
     setAnexo(null);
+    setCarregandoAnexo(false);
     gravacao.parar(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversa.id]);
@@ -334,16 +385,30 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
 
   useEffect(() => setIndice(0), [texto, listaAberta]);
 
-  const escolher = (textoResposta: string) => {
+  const escolher = (r: RespostaPronta) => {
     setTexto(
-      preencherResposta(textoResposta, {
-        nome: conversa.contact_name,
-        unidade: conversa.unidade,
-        atendente: eu?.name,
-      }),
+      r.texto
+        ? preencherResposta(r.texto, {
+            nome: conversa.contact_name,
+            unidade: conversa.unidade,
+            atendente: eu?.name,
+          })
+        : '',
     );
     setListaAberta(false);
     requestAnimationFrame(() => campo.current?.focus());
+    if (!r.anexo_caminho) return;
+    // O arquivo da resposta entra na caixa como o clipe, e sai do mesmo jeito.
+    const daConversa = conversa.id;
+    const aqui = () => montada.current && conversaAtual.current === daConversa;
+    setCarregandoAnexo(true);
+    baixarAnexoResposta(r.anexo_caminho)
+      .then((arquivo) => {
+        // Trocou de conversa no meio: o arquivo não pode cair no paciente seguinte.
+        if (aqui()) anexar(arquivo, r.anexo_nome ?? 'arquivo', r.anexo_mimetype ?? arquivo.type);
+      })
+      .catch((e) => toast.error(mensagemDeErro(e)))
+      .finally(() => { if (aqui()) setCarregandoAnexo(false); });
   };
 
   // A mensagem aparece na conversa na hora, como "enviando", e a caixa já fica
@@ -351,7 +416,7 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
   // baixava a lista inteira de conversas para mostrar a mensagem.
   const mandar = () => {
     const corpo = texto.trim();
-    if (!corpo && !anexo) return;
+    if (carregandoAnexo || (!corpo && !anexo)) return;
     const assinado = corpo && regras?.assinar ? assinarMensagem(corpo, eu?.name) : corpo;
     const doAnexo = anexo;
     const conv = conversa;
@@ -405,7 +470,7 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
     if (sugestoes.length > 0) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setIndice((i) => (i + 1) % sugestoes.length); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); setIndice((i) => (i - 1 + sugestoes.length) % sugestoes.length); return; }
-      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); escolher(sugestoes[indice].texto); return; }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); escolher(sugestoes[indice]); return; }
       if (e.key === 'Escape') { e.preventDefault(); setListaAberta(false); if (barra) setTexto(''); return; }
     }
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -425,7 +490,7 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
             <button
               key={r.id}
               type="button"
-              onMouseDown={(e) => { e.preventDefault(); escolher(r.texto); }}
+              onMouseDown={(e) => { e.preventDefault(); escolher(r); }}
               onMouseEnter={() => setIndice(i)}
               className={`w-full text-left px-3 py-2 ${i === indice ? 'bg-muted' : ''}`}
             >
@@ -434,8 +499,14 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
                 {r.unidade && (
                   <span className="text-[11px] px-1.5 py-0.5 rounded border bg-muted text-muted-foreground">{r.unidade}</span>
                 )}
+                {r.anexo_mimetype && (
+                  <span className="text-[11px] px-1.5 py-0.5 rounded border bg-muted text-muted-foreground flex items-center gap-1">
+                    <Paperclip className="w-3 h-3" />
+                    {rotuloDoAnexo(r.anexo_mimetype)}
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{r.texto}</p>
+              {r.texto && <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{r.texto}</p>}
             </button>
           ))}
         </div>
@@ -447,6 +518,13 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
             ? 'Nenhuma resposta pronta cadastrada. Crie em Configurações.'
             : 'Nenhum atalho começa assim.'}
         </p>
+      )}
+
+      {carregandoAnexo && (
+        <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          Carregando o arquivo da resposta pronta…
+        </div>
       )}
 
       {anexo && (
@@ -575,6 +653,9 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
 
   const nomes = useMemo(() => new Map(equipe.map((p) => [p.id, p.name || p.email])), [equipe]);
   const { data: papel } = useMeuPapel();
+  // Quem gere respostas prontas (06-atendimento.sql) pode salvar uma mídia da conversa como resposta.
+  const podeGuardar = papel === 'admin' || papel === 'manager' || papel === 'atendente';
+  const [paraGuardar, setParaGuardar] = useState<AnexoResposta | null>(null);
   const marcarEquipe = useMarcarTelefoneEquipe();
   const colocarNoFunil = useColocarNoFunil();
 
@@ -859,7 +940,7 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
                   <span className="text-[11px] px-2.5 py-1 rounded-full bg-card border text-muted-foreground">{dia}</span>
                 </div>
               )}
-              <Balao m={m} autor={autorDe(m)} />
+              <Balao m={m} autor={autorDe(m)} aoGuardar={podeGuardar ? setParaGuardar : undefined} />
             </Fragment>
           );
         })}
@@ -867,6 +948,12 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
       </div>
 
       <CaixaDeTexto conversa={conversa} eu={eu} />
+
+      <QuickRepliesModal
+        open={!!paraGuardar}
+        onOpenChange={(aberto) => { if (!aberto) setParaGuardar(null); }}
+        inicial={paraGuardar}
+      />
     </div>
   );
 }

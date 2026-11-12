@@ -50,6 +50,10 @@ export interface RespostaPronta {
   unidade: string | null;
   atalho: string;
   texto: string;
+  /** Arquivo no bucket respostas-prontas ({empresa}/{arquivo}) que sai com a resposta (43-resposta-pronta-com-anexo.sql). */
+  anexo_caminho: string | null;
+  anexo_mimetype: string | null;
+  anexo_nome: string | null;
   created_by: string | null;
   updated_at: string;
 }
@@ -727,7 +731,7 @@ export function useRespostasProntas(ativo = true) {
     queryFn: async () => {
       const { data, error } = await crm
         .from('quick_replies')
-        .select('id, unidade, atalho, texto, created_by, updated_at')
+        .select('id, unidade, atalho, texto, anexo_caminho, anexo_mimetype, anexo_nome, created_by, updated_at')
         .order('atalho');
       if (error) throw error;
       return (data ?? []) as RespostaPronta[];
@@ -735,20 +739,57 @@ export function useRespostasProntas(ativo = true) {
   });
 }
 
+const BUCKET_RESPOSTAS = 'respostas-prontas';
+
+/** Arquivo que vai junto da resposta pronta (o áudio da avaliação, por exemplo). */
+export interface AnexoResposta {
+  arquivo: Blob;
+  nome: string;
+  mimetype: string;
+}
+
+export const rotuloDoAnexo = (mime: string) =>
+  mime.startsWith('audio/') ? 'Áudio' : mime.startsWith('image/') ? 'Foto' : mime.startsWith('video/') ? 'Vídeo' : 'Documento';
+
 export function useSalvarRespostaPronta() {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (r: { id?: string; unidade: string | null; atalho: string; texto: string; tenantId: string }) => {
-      const linha = { unidade: r.unidade, atalho: r.atalho, texto: r.texto };
+    // anexo: arquivo novo; null tira o que tinha; sem o campo, fica como está.
+    // anexoAnterior: o caminho que a resposta tinha, apagado quando troca ou sai.
+    mutationFn: async (r: {
+      id?: string; unidade: string | null; atalho: string; texto: string; tenantId: string;
+      anexo?: AnexoResposta | null; anexoAnterior?: string | null;
+    }) => {
+      let novo: string | null = null;
+      if (r.anexo) {
+        const ext = (r.anexo.nome.split('.').pop() ?? '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8) || 'bin';
+        novo = `${r.tenantId}/${crypto.randomUUID()}.${ext}`;
+        const { error } = await supabase.storage
+          .from(BUCKET_RESPOSTAS)
+          .upload(novo, r.anexo.arquivo, { contentType: r.anexo.mimetype, upsert: false });
+        if (error) {
+          throw new Error(/row-level security|unauthorized|403/i.test(error.message)
+            ? 'Você não pode mexer nas respostas prontas.'
+            : `Não foi possível guardar o arquivo: ${error.message}`);
+        }
+      }
+      const linha: Record<string, unknown> = { unidade: r.unidade, atalho: r.atalho, texto: r.texto };
+      if (r.anexo !== undefined) {
+        linha.anexo_caminho = novo;
+        linha.anexo_mimetype = r.anexo?.mimetype ?? null;
+        linha.anexo_nome = r.anexo?.nome ?? null;
+      }
       const { error } = r.id
         ? await crm.from('quick_replies').update(linha).eq('id', r.id)
         : await crm.from('quick_replies').insert({ ...linha, tenant_id: r.tenantId, created_by: user?.id });
       if (error) {
+        if (novo) await supabase.storage.from(BUCKET_RESPOSTAS).remove([novo]);
         if (error.code === '23505') throw new Error('Já existe uma resposta com esse atalho nessa unidade.');
         if (error.code === '42501') throw new Error('Você não pode mexer nas respostas dessa unidade.');
         throw new Error(error.message);
       }
+      if (r.anexo !== undefined && r.anexoAnterior) await supabase.storage.from(BUCKET_RESPOSTAS).remove([r.anexoAnterior]);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['respostas-prontas'] }),
   });
@@ -757,12 +798,20 @@ export function useSalvarRespostaPronta() {
 export function useApagarRespostaPronta() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await crm.from('quick_replies').delete().eq('id', id);
+    mutationFn: async (r: RespostaPronta) => {
+      const { error } = await crm.from('quick_replies').delete().eq('id', r.id);
       if (error) throw new Error(error.message);
+      if (r.anexo_caminho) await supabase.storage.from(BUCKET_RESPOSTAS).remove([r.anexo_caminho]);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['respostas-prontas'] }),
   });
+}
+
+/** O arquivo da resposta pronta, para entrar na caixa da conversa como anexo. */
+export async function baixarAnexoResposta(caminho: string): Promise<Blob> {
+  const { data, error } = await supabase.storage.from(BUCKET_RESPOSTAS).download(caminho);
+  if (error || !data) throw new Error('Não foi possível abrir o arquivo da resposta pronta.');
+  return data;
 }
 
 /** Troca {nome}, {unidade} e {atendente} pelo valor da conversa aberta. */

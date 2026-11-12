@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,14 +6,14 @@ import { Label } from '@/components/ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Loader2, MessageSquareText, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Loader2, MessageSquareText, Paperclip, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenant } from '@/hooks/useTenant';
 import {
-  useApagarRespostaPronta, useEquipe, useRespostasProntas, useSalvarRespostaPronta,
-  type RespostaPronta,
+  useApagarRespostaPronta, useEquipe, useRespostasProntas, useSalvarRespostaPronta, baixarAnexoResposta,
+  rotuloDoAnexo, LIMITE_ANEXO, type AnexoResposta, type RespostaPronta,
 } from '@/hooks/useAtendimento';
 
 const TODAS = '__todas__';
@@ -21,6 +21,8 @@ const TODAS = '__todas__';
 interface QuickRepliesModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Arquivo de uma conversa ("Salvar como resposta pronta"): abre direto numa resposta nova com ele. */
+  inicial?: AnexoResposta | null;
 }
 
 interface Rascunho {
@@ -28,6 +30,10 @@ interface Rascunho {
   atalho: string;
   unidade: string;
   texto: string;
+  /** Arquivo novo; null tira o que a resposta tinha; sem valor, fica o que tinha. */
+  anexo?: AnexoResposta | null;
+  /** O arquivo que a resposta já tinha ao abrir para editar. */
+  anexoAtual: { caminho: string; nome: string; mimetype: string } | null;
 }
 
 /** Atalho vira só minúscula, número, hífen e sublinhado: é o que o banco aceita. */
@@ -42,7 +48,7 @@ function limparAtalho(v: string): string {
     .slice(0, 30);
 }
 
-export function QuickRepliesModal({ open, onOpenChange }: QuickRepliesModalProps) {
+export function QuickRepliesModal({ open, onOpenChange, inicial }: QuickRepliesModalProps) {
   const { user } = useAuth();
   const { tenant } = useTenant();
   const { data: respostas = [], isLoading } = useRespostasProntas(open);
@@ -51,6 +57,8 @@ export function QuickRepliesModal({ open, onOpenChange }: QuickRepliesModalProps
   const apagar = useApagarRespostaPronta();
   const [unidades, setUnidades] = useState<string[]>([]);
   const [rascunho, setRascunho] = useState<Rascunho | null>(null);
+  const [previa, setPrevia] = useState<string | null>(null);
+  const seletor = useRef<HTMLInputElement>(null);
 
   const minhaUnidade = equipe.find((p) => p.id === user?.id)?.unidade ?? null;
 
@@ -66,15 +74,61 @@ export function QuickRepliesModal({ open, onOpenChange }: QuickRepliesModalProps
       );
   }, [open]);
 
+  const nova = (anexo?: AnexoResposta) =>
+    setRascunho({ atalho: '', unidade: minhaUnidade ?? TODAS, texto: '', anexo, anexoAtual: null });
+
   useEffect(() => {
     if (!open) setRascunho(null);
-  }, [open]);
-
-  const nova = () =>
-    setRascunho({ atalho: '', unidade: minhaUnidade ?? TODAS, texto: '' });
+    else if (inicial) nova(inicial);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, inicial]);
 
   const editar = (r: RespostaPronta) =>
-    setRascunho({ id: r.id, atalho: r.atalho, unidade: r.unidade ?? TODAS, texto: r.texto });
+    setRascunho({
+      id: r.id, atalho: r.atalho, unidade: r.unidade ?? TODAS, texto: r.texto,
+      anexoAtual: r.anexo_caminho
+        ? { caminho: r.anexo_caminho, nome: r.anexo_nome ?? 'arquivo', mimetype: r.anexo_mimetype ?? '' }
+        : null,
+    });
+
+  // O que aparece no rascunho: o arquivo novo ou, sem troca, o que a resposta já tinha.
+  const anexoMostrado = rascunho ? (rascunho.anexo !== undefined ? rascunho.anexo : rascunho.anexoAtual) : null;
+
+  // Prévia para ouvir ou ver antes de salvar. O arquivo que já estava guardado é baixado.
+  useEffect(() => {
+    setPrevia(null);
+    if (!rascunho) return;
+    let url: string | null = null;
+    let viva = true;
+    if (rascunho.anexo) {
+      url = URL.createObjectURL(rascunho.anexo.arquivo);
+      setPrevia(url);
+    } else if (rascunho.anexo === undefined && rascunho.anexoAtual) {
+      baixarAnexoResposta(rascunho.anexoAtual.caminho)
+        .then((b) => {
+          if (!viva) return;
+          url = URL.createObjectURL(b);
+          setPrevia(url);
+        })
+        .catch(() => undefined);
+    }
+    return () => {
+      viva = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rascunho?.anexo, rascunho?.anexoAtual?.caminho]);
+
+  const escolherArquivo = (arq: File) => {
+    if (arq.size > LIMITE_ANEXO) {
+      toast.error('Arquivo grande demais: até 10 MB.');
+      return;
+    }
+    setRascunho((r) => r && { ...r, anexo: { arquivo: arq, nome: arq.name, mimetype: arq.type || 'application/octet-stream' } });
+  };
+
+  // Vindo de uma conversa, cancelar ou salvar volta para a conversa.
+  const fechar = () => (inicial ? onOpenChange(false) : setRascunho(null));
 
   const gravar = () => {
     if (!rascunho || !tenant) return;
@@ -82,8 +136,8 @@ export function QuickRepliesModal({ open, onOpenChange }: QuickRepliesModalProps
       toast.error('O atalho precisa de pelo menos 2 letras.');
       return;
     }
-    if (!rascunho.texto.trim()) {
-      toast.error('Escreva o texto da resposta.');
+    if (!rascunho.texto.trim() && !anexoMostrado) {
+      toast.error('Escreva o texto ou escolha um arquivo.');
       return;
     }
     salvar.mutate(
@@ -93,11 +147,13 @@ export function QuickRepliesModal({ open, onOpenChange }: QuickRepliesModalProps
         unidade: rascunho.unidade === TODAS ? null : rascunho.unidade,
         texto: rascunho.texto.trim(),
         tenantId: tenant.id,
+        anexo: rascunho.anexo,
+        anexoAnterior: rascunho.anexoAtual?.caminho ?? null,
       },
       {
         onSuccess: () => {
           toast.success('Resposta salva');
-          setRascunho(null);
+          fechar();
         },
         onError: (e) => toast.error(e instanceof Error ? e.message : 'Erro ao salvar'),
       },
@@ -106,7 +162,7 @@ export function QuickRepliesModal({ open, onOpenChange }: QuickRepliesModalProps
 
   const remover = (r: RespostaPronta) => {
     if (!confirm(`Apagar a resposta /${r.atalho}?`)) return;
-    apagar.mutate(r.id, {
+    apagar.mutate(r, {
       onError: (e) => toast.error(e instanceof Error ? e.message : 'Erro ao apagar'),
     });
   };
@@ -123,7 +179,7 @@ export function QuickRepliesModal({ open, onOpenChange }: QuickRepliesModalProps
             Respostas prontas
           </DialogTitle>
           <DialogDescription>
-            Textos que a equipe usa no atendimento digitando <strong>/atalho</strong>. Uma resposta pode valer para
+            Textos, áudios e arquivos que a equipe usa no atendimento digitando <strong>/atalho</strong>. Uma resposta pode valer para
             todas as unidades ou só para uma: o endereço, por exemplo, é um por unidade.
           </DialogDescription>
         </DialogHeader>
@@ -174,12 +230,57 @@ export function QuickRepliesModal({ open, onOpenChange }: QuickRepliesModalProps
               />
               <p className="text-xs text-muted-foreground">
                 <code>{'{nome}'}</code> vira o primeiro nome do paciente, <code>{'{unidade}'}</code> a unidade da conversa
-                e <code>{'{atendente}'}</code> o seu primeiro nome.
+                e <code>{'{atendente}'}</code> o seu primeiro nome. Com arquivo, o texto pode ficar vazio.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Áudio ou arquivo (opcional)</Label>
+              {anexoMostrado ? (
+                <div className="flex items-center gap-3 rounded-lg border bg-muted/40 p-2">
+                  {anexoMostrado.mimetype.startsWith('audio/') && previa ? (
+                    <audio controls src={previa} className="h-10 max-w-[300px]" />
+                  ) : anexoMostrado.mimetype.startsWith('image/') && previa ? (
+                    <img src={previa} alt={anexoMostrado.nome} className="h-14 w-14 rounded object-cover" />
+                  ) : (
+                    <span className="text-sm font-medium">{rotuloDoAnexo(anexoMostrado.mimetype)}</span>
+                  )}
+                  <span className="flex-1 min-w-0 truncate text-xs text-muted-foreground">{anexoMostrado.nome}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    title="Tirar arquivo"
+                    onClick={() => setRascunho((r) => r && { ...r, anexo: null })}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <Button type="button" variant="outline" size="sm" onClick={() => seletor.current?.click()}>
+                  <Paperclip className="w-4 h-4 mr-1.5" />
+                  Escolher arquivo
+                </Button>
+              )}
+              <input
+                ref={seletor}
+                type="file"
+                className="hidden"
+                onChange={(e) => {
+                  const arq = e.target.files?.[0];
+                  if (arq) escolherArquivo(arq);
+                  e.target.value = '';
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Áudio sai como mensagem de voz, e o texto, se tiver, vai logo depois. Foto, vídeo e documento levam o
+                texto como legenda. Até 10 MB. Um áudio que já está numa conversa pode ser salvo de lá: abra o áudio e
+                clique em <strong>Salvar como resposta pronta</strong>.
               </p>
             </div>
 
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setRascunho(null)}>Cancelar</Button>
+              <Button variant="outline" onClick={fechar}>Cancelar</Button>
               <Button onClick={gravar} disabled={salvar.isPending}>
                 {salvar.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar'}
               </Button>
@@ -191,7 +292,7 @@ export function QuickRepliesModal({ open, onOpenChange }: QuickRepliesModalProps
               <p className="text-sm text-muted-foreground">
                 {respostas.length} {respostas.length === 1 ? 'resposta' : 'respostas'}
               </p>
-              <Button size="sm" onClick={nova}>
+              <Button size="sm" onClick={() => nova()}>
                 <Plus className="w-4 h-4 mr-1" />
                 Nova resposta
               </Button>
@@ -219,6 +320,12 @@ export function QuickRepliesModal({ open, onOpenChange }: QuickRepliesModalProps
                       <span className="text-[11px] px-1.5 py-0.5 rounded border bg-muted text-muted-foreground">
                         {r.unidade ?? 'Todas as unidades'}
                       </span>
+                      {r.anexo_mimetype && (
+                        <span className="text-[11px] px-1.5 py-0.5 rounded border bg-muted text-muted-foreground flex items-center gap-1">
+                          <Paperclip className="w-3 h-3" />
+                          {rotuloDoAnexo(r.anexo_mimetype)}
+                        </span>
+                      )}
                     </div>
                     <div className="flex gap-1 shrink-0">
                       <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => editar(r)} title="Editar">
@@ -235,7 +342,9 @@ export function QuickRepliesModal({ open, onOpenChange }: QuickRepliesModalProps
                       </Button>
                     </div>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap line-clamp-3">{r.texto}</p>
+                  {r.texto && (
+                    <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap line-clamp-3">{r.texto}</p>
+                  )}
                 </div>
               ))}
             </div>
