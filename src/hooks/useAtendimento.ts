@@ -285,6 +285,109 @@ export function useConversaPorId(id: string | null, ativo: boolean) {
   });
 }
 
+// ---------------------------------------------------------------- rascunhos
+
+/**
+ * O texto deixado escrito numa conversa, de quem está logado (crm.rascunhos,
+ * 44-rascunho-e-nome-do-paciente.sql). A lista mostra "Rascunho:" e sobe a
+ * conversa, como no WhatsApp (pedido da clínica em 12/11/2026, para o resgate de
+ * pacientes). Até 12/11 ficava só na aba do navegador.
+ */
+export interface Rascunho {
+  texto: string;
+  atualizado_em: string;
+}
+export type Rascunhos = Record<string, Rascunho>;
+
+const chaveRascunhos = (userId: string | undefined) => ['rascunhos', userId ?? ''];
+const RASCUNHOS_DA_ABA = 'crm-rascunhos';
+
+export function useRascunhos(userId: string | undefined, ativo = true) {
+  return useQuery({
+    queryKey: chaveRascunhos(userId),
+    enabled: ativo && !!userId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await crm.from('rascunhos').select('conversation_id, texto, atualizado_em');
+      if (error) throw error;
+      const r: Rascunhos = {};
+      for (const l of data ?? []) r[l.conversation_id] = { texto: l.texto, atualizado_em: l.atualizado_em };
+      // Os que estavam guardados só na aba, do jeito antigo, passam para o banco uma vez.
+      try {
+        const daAba = JSON.parse(sessionStorage.getItem(RASCUNHOS_DA_ABA) ?? '{}') as Record<string, string>;
+        sessionStorage.removeItem(RASCUNHOS_DA_ABA);
+        for (const [id, texto] of Object.entries(daAba)) {
+          if (r[id] || !texto?.trim()) continue;
+          r[id] = { texto, atualizado_em: new Date().toISOString() };
+          void gravarRascunho(userId!, id, texto);
+        }
+      } catch {
+        // Sem armazenamento da aba, nada a passar.
+      }
+      return r;
+    },
+  });
+}
+
+/** Conversas com rascunho que estão fora das que a lista já carregou. */
+export function useConversasPorIds(ids: string[], ativo: boolean) {
+  const chave = [...ids].sort().join(',');
+  return useQuery({
+    queryKey: ['conversas', 'ids', chave],
+    enabled: ativo && ids.length > 0,
+    queryFn: async () => {
+      const { data, error } = await crm.from('conversations').select('*').in('id', ids);
+      if (error) throw error;
+      return (data ?? []) as Conversa[];
+    },
+  });
+}
+
+export function rascunhoDe(qc: QueryClient, userId: string | undefined, conversaId: string): string {
+  return qc.getQueryData<Rascunhos>(chaveRascunhos(userId))?.[conversaId]?.texto ?? '';
+}
+
+async function gravarRascunho(userId: string, conversaId: string, texto: string) {
+  const { error } = texto.trim()
+    ? await crm.from('rascunhos').upsert(
+        { user_id: userId, conversation_id: conversaId, texto, atualizado_em: new Date().toISOString() },
+        { onConflict: 'user_id,conversation_id' },
+      )
+    : await crm.from('rascunhos').delete().eq('user_id', userId).eq('conversation_id', conversaId);
+  if (error) console.error('[rascunho]', error.message);
+}
+
+// Um texto pendente por conversa: grava 800 ms depois da última tecla.
+const rascunhosPendentes = new Map<string, { userId: string; texto: string; timer: ReturnType<typeof setTimeout> }>();
+
+/** Grava já o que está esperando: ao sair da conversa e ao fechar a aba. */
+export function gravarRascunhosJa() {
+  for (const [id, p] of rascunhosPendentes) {
+    clearTimeout(p.timer);
+    void gravarRascunho(p.userId, id, p.texto);
+  }
+  rascunhosPendentes.clear();
+}
+if (typeof window !== 'undefined') window.addEventListener('pagehide', gravarRascunhosJa);
+
+/** Atualiza a lista na hora e grava no banco logo depois. Texto vazio apaga o rascunho. */
+export function guardarRascunho(qc: QueryClient, userId: string | undefined, conversaId: string, texto: string) {
+  if (!userId) return;
+  qc.setQueryData<Rascunhos>(chaveRascunhos(userId), (atual) => {
+    const novo = { ...(atual ?? {}) };
+    if (texto.trim()) novo[conversaId] = { texto, atualizado_em: new Date().toISOString() };
+    else delete novo[conversaId];
+    return novo;
+  });
+  const pendente = rascunhosPendentes.get(conversaId);
+  if (pendente) clearTimeout(pendente.timer);
+  const timer = setTimeout(() => {
+    rascunhosPendentes.delete(conversaId);
+    void gravarRascunho(userId, conversaId, texto);
+  }, 800);
+  rascunhosPendentes.set(conversaId, { userId, texto, timer });
+}
+
 export function useConversas(ativo = true) {
   return useQuery({
     queryKey: ['conversas'],

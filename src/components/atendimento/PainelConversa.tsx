@@ -15,6 +15,7 @@ import {
   ROTULO_TIPO, useAgendarAvaliacao, useAvaliacaoAberta, useUnidadeDoPaciente, useUnidadesDaEmpresa,
 } from '@/hooks/useAgenda';
 import { useMeuPapel } from '@/hooks/useEmpresa';
+import { useAuth } from '@/hooks/useAuth';
 import { QuickRepliesModal } from '@/components/settings/QuickRepliesModal';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,7 +26,7 @@ import {
   useAtualizarConversa, useEnviarMensagem, useMensagens, useRespostasProntas, useRegrasAtendimento, assinarMensagem,
   lerAnexo, LIMITE_ANEXO, adicionarPendente, confirmarPendente, removerPendente, buscarNovasMensagens,
   useAnunciosDeOrigem, origemDaConversa, nomeCurtoCampanha, useColocarNoFunil, mensagemDeErro,
-  baixarAnexoResposta, rotuloDoAnexo,
+  baixarAnexoResposta, rotuloDoAnexo, useRascunhos, rascunhoDe, guardarRascunho, gravarRascunhosJa,
   type AnexoResposta, type Conversa, type Mensagem, type Pessoa, type RespostaPronta,
 } from '@/hooks/useAtendimento';
 
@@ -301,36 +302,18 @@ function useGravador(aoTerminar: (arquivo: Blob, mimetype: string, extensao: str
 // as dos outros (reunião de 05/11). Fora do componente para sobreviver ao fechar a conversa.
 const filasDeEnvio = new Map<string, Promise<void>>();
 
-// Rascunho de cada conversa, nesta aba: some ao fechar a aba, porque o computador
-// da recepção é de uso comum.
-const CHAVE_RASCUNHOS = 'crm-rascunhos';
-function lerRascunhos(): Record<string, string> {
-  try {
-    return JSON.parse(sessionStorage.getItem(CHAVE_RASCUNHOS) ?? '{}');
-  } catch {
-    return {};
-  }
-}
-const rascunhoDe = (id: string) => lerRascunhos()[id] ?? '';
-function guardarRascunho(id: string, texto: string) {
-  try {
-    const todos = lerRascunhos();
-    if (texto) todos[id] = texto;
-    else delete todos[id];
-    sessionStorage.setItem(CHAVE_RASCUNHOS, JSON.stringify(todos));
-  } catch {
-    // Sem armazenamento, só não guarda.
-  }
-}
-
 function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undefined }) {
-  const [texto, setTexto] = useState(() => rascunhoDe(conversa.id));
+  const qc = useQueryClient();
+  // Rascunho por usuário, no banco (useRascunhos): a lista mostra e ele não some ao fechar a aba.
+  const { user } = useAuth();
+  const uid = user?.id;
+  const { data: rascunhos } = useRascunhos(uid);
+  const [texto, setTexto] = useState(() => rascunhoDe(qc, uid, conversa.id));
   const [listaAberta, setListaAberta] = useState(false);
   const [indice, setIndice] = useState(0);
   const [anexo, setAnexo] = useState<AnexoNaCaixa | null>(null);
   const [carregandoAnexo, setCarregandoAnexo] = useState(false);
   const campo = useRef<HTMLTextAreaElement>(null);
-  const qc = useQueryClient();
   const conversaAtual = useRef(conversa.id);
   conversaAtual.current = conversa.id;
   const montada = useRef(true);
@@ -361,14 +344,27 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
   // conversa: o áudio não pode cair no paciente seguinte.
   useEffect(() => {
     donoDoTexto.current = conversa.id;
-    setTexto(rascunhoDe(conversa.id));
+    setTexto(rascunhoDe(qc, uid, conversa.id));
     setListaAberta(false);
     setAnexo(null);
     setCarregandoAnexo(false);
     gravacao.parar(true);
+    // Ao sair da conversa o rascunho dela vai já para o banco.
+    return () => gravarRascunhosJa();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversa.id]);
-  useEffect(() => { guardarRascunho(donoDoTexto.current, texto); }, [texto]);
+  // Só grava o que a pessoa mudou: ao abrir a conversa o texto vem do próprio rascunho.
+  useEffect(() => {
+    if (texto === rascunhoDe(qc, uid, donoDoTexto.current)) return;
+    guardarRascunho(qc, uid, donoDoTexto.current, texto);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [texto]);
+  // Conversa aberta antes de os rascunhos chegarem do banco: o texto entra quando chegam.
+  useEffect(() => {
+    const salvo = rascunhos?.[donoDoTexto.current]?.texto;
+    if (salvo && !texto) setTexto(salvo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!rascunhos]);
 
   const daUnidade = useMemo(
     () => respostas.filter((r) => !r.unidade || r.unidade === conversa.unidade),
@@ -455,8 +451,8 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
         if (aqui) {
           if (corpo) setTexto((atual) => atual || corpo);
           if (doAnexo && !anexoSaiu) setAnexo((atual) => atual ?? { ...doAnexo, previa: URL.createObjectURL(doAnexo.arquivo) });
-        } else if (corpo && !rascunhoDe(conv.id)) {
-          guardarRascunho(conv.id, corpo);
+        } else if (corpo && !rascunhoDe(qc, uid, conv.id)) {
+          guardarRascunho(qc, uid, conv.id, corpo);
         }
       }
     });

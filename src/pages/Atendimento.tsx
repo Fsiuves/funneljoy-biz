@@ -15,8 +15,8 @@ import { chaveNome } from '@/lib/busca';
 import { toast } from 'sonner';
 import {
   useAtualizarConversa, useConversas, useEquipe, useModulosAtivos, useAnunciosDeOrigem, origemDaConversa, descreverOrigem,
-  useBuscaConversas, useConversaPorId, useConversasAntigas, useIniciarConversa,
-  type Conversa,
+  useBuscaConversas, useConversaPorId, useConversasAntigas, useIniciarConversa, useRascunhos, useConversasPorIds,
+  type Conversa, type Rascunho,
 } from '@/hooks/useAtendimento';
 import { CornerUpLeft, Loader2, Megaphone, MessageCircle, Search, Smartphone } from 'lucide-react';
 
@@ -29,6 +29,8 @@ interface ItemConversaProps {
   mostrarUnidade: boolean;
   /** "Meta · campanha · anúncio", quando o paciente veio de anúncio. */
   anuncio?: string;
+  /** Texto deixado escrito por quem está logado, fora da conversa aberta. */
+  rascunho?: Rascunho;
   aoAbrir: (id: string) => void;
 }
 
@@ -36,7 +38,7 @@ interface ItemConversaProps {
  * Uma linha da fila. Com memo, mensagem nova redesenha só a conversa que mudou,
  * não as 500 da lista.
  */
-const ItemConversa = memo(function ItemConversa({ c, ativa, responsavel, mostrarUnidade, anuncio, aoAbrir }: ItemConversaProps) {
+const ItemConversa = memo(function ItemConversa({ c, ativa, responsavel, mostrarUnidade, anuncio, rascunho, aoAbrir }: ItemConversaProps) {
   const nome = c.contact_name || formatarTelefone(c.phone);
   return (
     <button
@@ -55,13 +57,21 @@ const ItemConversa = memo(function ItemConversa({ c, ativa, responsavel, mostrar
               {nome}
             </p>
             <span className={`text-xs shrink-0 ${c.unread_count > 0 ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
-              {rotuloHora(c.last_message_at)}
+              {rotuloHora(rascunho?.atualizado_em ?? c.last_message_at)}
             </span>
           </div>
           <div className="flex items-center justify-between gap-2 mt-0.5">
             <p className="text-sm text-muted-foreground truncate flex items-center gap-1">
-              {c.last_message_from_me && <CornerUpLeft className="w-3.5 h-3.5 shrink-0" />}
-              <span className="truncate">{c.last_message_preview}</span>
+              {rascunho ? (
+                <span className="truncate">
+                  <span className="font-semibold text-emerald-600">Rascunho:</span> {rascunho.texto}
+                </span>
+              ) : (
+                <>
+                  {c.last_message_from_me && <CornerUpLeft className="w-3.5 h-3.5 shrink-0" />}
+                  <span className="truncate">{c.last_message_preview}</span>
+                </>
+              )}
             </p>
             {c.unread_count > 0 && (
               <span className="shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-accent text-accent-foreground text-[11px] font-semibold flex items-center justify-center">
@@ -120,8 +130,15 @@ export default function Atendimento() {
   const iniciar = useIniciarConversa();
   const naLista = recentes.some((c) => c.id === abertaId);
   const { data: avulsa } = useConversaPorId(abertaId, liberado && !carregandoConversas && !naLista);
+  // Rascunhos de quem está logado: a conversa sobe para o topo, como no WhatsApp.
+  const { data: rascunhos = {} } = useRascunhos(user?.id, liberado);
+  const foraDaLista = useMemo(() => {
+    const ids = new Set([...recentes, ...achadas, ...(paginasAntigas?.flat() ?? [])].map((c) => c.id));
+    return Object.keys(rascunhos).filter((id) => !ids.has(id));
+  }, [rascunhos, recentes, achadas, paginasAntigas]);
+  const { data: dosRascunhos = [] } = useConversasPorIds(foraDaLista, liberado && !carregandoConversas);
   const conversas = useMemo(() => {
-    const extras = [...achadas, ...(paginasAntigas?.flat() ?? []), ...(avulsa ? [avulsa] : [])];
+    const extras = [...achadas, ...(paginasAntigas?.flat() ?? []), ...(avulsa ? [avulsa] : []), ...dosRascunhos];
     if (!extras.length) return recentes;
     const ids = new Set(recentes.map((c) => c.id));
     const novas: Conversa[] = [];
@@ -131,7 +148,7 @@ export default function Atendimento() {
       novas.push(c);
     }
     return novas.length ? [...recentes, ...novas] : recentes;
-  }, [recentes, achadas, paginasAntigas, avulsa]);
+  }, [recentes, achadas, paginasAntigas, avulsa, dosRascunhos]);
 
   const eu = equipe.find((p) => p.id === user?.id);
   const nomes = useMemo(() => new Map(equipe.map((p) => [p.id, p.name || p.email])), [equipe]);
@@ -151,15 +168,20 @@ export default function Atendimento() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversas, unidade, user?.id]);
 
+  // Rascunho aparece ao sair da conversa (pedido da clínica em 12/11/2026): a aberta
+  // fica no lugar dela enquanto a pessoa escreve.
+  const comRascunho = (c: Conversa) => !!rascunhos[c.id] && c.id !== abertaId;
+
   const lista = useMemo(() => {
     const termo = chaveNome(busca.trim());
     const digitos = busca.replace(/\D/g, '');
     const noServidor = new Set(achadas.map((c) => c.id));
-    return conversas.filter((c) => {
+    const filtradas = conversas.filter((c) => {
       if (!naUnidade(c)) return false;
       // Buscando, vale qualquer aba: quem procura um nome não sabe se a conversa
-      // está aberta ou resolvida, nem com quem.
-      if (!termo) {
+      // está aberta ou resolvida, nem com quem. Com rascunho, também: é trabalho
+      // pendente de quem escreveu, em qualquer aba.
+      if (!termo && !comRascunho(c)) {
         if ((c.status === 'resolvida') !== resolvidas) return false;
         if (fila === 'minhas' && c.assigned_to !== user?.id) return false;
         if (fila === 'sem' && c.assigned_to) return false;
@@ -173,8 +195,12 @@ export default function Atendimento() {
       }
       return true;
     });
+    // As com rascunho no topo, a mais recente primeiro; as outras na ordem de sempre.
+    const fixas = filtradas.filter(comRascunho)
+      .sort((a, b) => rascunhos[b.id].atualizado_em.localeCompare(rascunhos[a.id].atualizado_em));
+    return fixas.length ? [...fixas, ...filtradas.filter((c) => !comRascunho(c))] : filtradas;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversas, achadas, resolvidas, unidade, fila, busca, user?.id]);
+  }, [conversas, achadas, resolvidas, unidade, fila, busca, user?.id, rascunhos, abertaId]);
 
   // Fim da lista à vista: busca as próximas 500. Em fila com poucas conversas, segue
   // buscando até encher a tela ou acabar.
@@ -386,6 +412,7 @@ export default function Atendimento() {
                 responsavel={c.assigned_to ? nomes.get(c.assigned_to) ?? 'Equipe' : 'Sem responsável'}
                 mostrarUnidade={unidades.length > 1}
                 anuncio={(() => { const o = origemDaConversa(origens, c); return o ? descreverOrigem(o) : undefined; })()}
+                rascunho={comRascunho(c) ? rascunhos[c.id] : undefined}
                 aoAbrir={setAbertaId}
               />
             ))}
