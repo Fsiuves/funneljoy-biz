@@ -15,7 +15,7 @@ import { chaveNome } from '@/lib/busca';
 import { toast } from 'sonner';
 import {
   useAtualizarConversa, useConversas, useEquipe, useModulosAtivos, useAnunciosDeOrigem, origemDaConversa, descreverOrigem,
-  useBuscaConversas, useConversaPorId, useConversasAntigas, useIniciarConversa, useRascunhos, useConversasPorIds,
+  useBuscaConversas, useConversaPorId, useConversasAntigas, useIniciarConversa, useRascunhos, useConversasPorIds, ehGrupo,
   type Conversa, type Rascunho,
 } from '@/hooks/useAtendimento';
 import { CornerUpLeft, Loader2, Megaphone, MessageCircle, Search, Smartphone } from 'lucide-react';
@@ -39,7 +39,7 @@ interface ItemConversaProps {
  * não as 500 da lista.
  */
 const ItemConversa = memo(function ItemConversa({ c, ativa, responsavel, mostrarUnidade, anuncio, rascunho, aoAbrir }: ItemConversaProps) {
-  const nome = c.contact_name || formatarTelefone(c.phone);
+  const nome = c.contact_name || (ehGrupo(c.phone) ? 'Grupo do WhatsApp' : formatarTelefone(c.phone));
   return (
     <button
       onClick={() => aoAbrir(c.id)}
@@ -81,7 +81,9 @@ const ItemConversa = memo(function ItemConversa({ c, ativa, responsavel, mostrar
           </div>
           <div className="flex items-center gap-2 mt-1.5">
             {c.interna && (
-              <span className="text-[11px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">Equipe</span>
+              <span className="text-[11px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                {ehGrupo(c.phone) ? 'Grupo' : 'Equipe'}
+              </span>
             )}
             {mostrarUnidade && (
               <span className="text-[11px] px-1.5 py-0.5 rounded border bg-muted text-muted-foreground">
@@ -162,7 +164,8 @@ export default function Atendimento() {
     const abertas = conversas.filter((c) => c.status === 'aberta' && naUnidade(c));
     return {
       minhas: abertas.filter((c) => c.assigned_to === user?.id).length,
-      sem: abertas.filter((c) => !c.assigned_to).length,
+      // Grupo é da equipe toda e nunca tem dono: não é paciente esperando alguém pegar.
+      sem: abertas.filter((c) => !c.assigned_to && !ehGrupo(c.phone)).length,
       todas: abertas.length,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -184,7 +187,7 @@ export default function Atendimento() {
       if (!termo && !comRascunho(c)) {
         if ((c.status === 'resolvida') !== resolvidas) return false;
         if (fila === 'minhas' && c.assigned_to !== user?.id) return false;
-        if (fila === 'sem' && c.assigned_to) return false;
+        if (fila === 'sem' && (c.assigned_to || ehGrupo(c.phone))) return false;
       }
       if (termo) {
         const nome = chaveNome(c.contact_name ?? '');

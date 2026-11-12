@@ -151,11 +151,13 @@ Deno.serve(async (req) => {
     // Quem responde primeiro assume a conversa, se ninguém tinha assumido. Quem
     // está oculto na empresa (o suporte da Dom) não assume: a conversa ficaria
     // presa num responsável que a equipe não vê, fora de "Sem responsável".
-    const { data: papel } = conversa.assigned_to
+    // Grupo do WhatsApp (46-grupos-do-whatsapp.sql) é da equipe toda: não tem dono.
+    const grupo = String(conversa.phone).endsWith("@g.us");
+    const { data: papel } = conversa.assigned_to || grupo
       ? { data: null }
       : await admin.schema("crm").from("user_roles").select("oculto")
           .eq("user_id", user.id).eq("tenant_id", (conversa as any).tenant_id).maybeSingle();
-    if (!conversa.assigned_to && !papel?.oculto) {
+    if (!conversa.assigned_to && !grupo && !papel?.oculto) {
       await admin
         .schema("crm")
         .from("conversations")

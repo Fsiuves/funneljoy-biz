@@ -73,7 +73,27 @@ export function configDaConta(conta: {
 // somava 55 a número de até 11 dígitos, e a resposta para número de fora com 11
 // dígitos (+1 980..., +41 7..., +27 7...) ia para um número brasileiro que não existe.
 export function normalizarTelefone(p: string): string {
+  // Grupo vai com o id inteiro (120363...@g.us): só os dígitos virariam um telefone
+  // que não existe (46-grupos-do-whatsapp.sql, 12/11/2026).
+  if ((p || '').endsWith('@g.us')) return p
   return (p || '').replace(/\D/g, '')
+}
+
+// Nome do grupo (assunto). A mensagem do grupo não traz; a wa-grupo pede uma vez,
+// quando a conversa nasce sem nome. GET {url}/group/findGroupInfos/{instance}?groupJid=
+export async function nomeDoGrupo(cfg: WaConfig, grupo: string): Promise<string | null> {
+  const base = evolutionBase(cfg)
+  if (!base) return null
+  try {
+    const url = `${base}/group/findGroupInfos/${encodeURIComponent(cfg.evolution_instance!)}?groupJid=${encodeURIComponent(grupo)}`
+    const res = await fetch(url, { headers: { apikey: cfg.evolution_apikey! }, signal: AbortSignal.timeout(8000) })
+    if (!res.ok) return null
+    const j = await res.json()
+    const nome = String(j?.subject ?? '').trim()
+    return nome || null
+  } catch {
+    return null
+  }
 }
 
 // Resposta dentro da conversa. Na Cloud API só vale com a janela de 24h aberta;

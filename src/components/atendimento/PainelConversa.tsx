@@ -26,7 +26,7 @@ import {
   useAtualizarConversa, useEnviarMensagem, useMensagens, useRespostasProntas, useRegrasAtendimento, assinarMensagem,
   lerAnexo, LIMITE_ANEXO, adicionarPendente, confirmarPendente, removerPendente, buscarNovasMensagens,
   useAnunciosDeOrigem, origemDaConversa, nomeCurtoCampanha, useColocarNoFunil, mensagemDeErro,
-  baixarAnexoResposta, rotuloDoAnexo, useRascunhos, rascunhoDe, guardarRascunho, gravarRascunhosJa,
+  baixarAnexoResposta, rotuloDoAnexo, useRascunhos, ehGrupo, rascunhoDe, guardarRascunho, gravarRascunhosJa,
   type AnexoResposta, type Conversa, type Mensagem, type Pessoa, type RespostaPronta,
 } from '@/hooks/useAtendimento';
 
@@ -203,6 +203,8 @@ function Balao({ m, autor, aoGuardar }: {
             : 'bg-card text-foreground border border-border rounded-bl-md'
         }`}
       >
+        {/* Em grupo, quem escreveu fica no alto do balão, como no WhatsApp. */}
+        {!deMim && m.autor && <p className="text-xs font-semibold text-primary mb-0.5">{m.autor}</p>}
         <MidiaSobDemanda m={m} deMim={deMim} aoGuardar={aoGuardar} />
         {texto && (
           <p className="whitespace-pre-wrap break-words leading-relaxed">
@@ -718,7 +720,8 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
     fim.current?.scrollIntoView({ block: 'end' });
   }, [mensagens.length, conversa.id]);
 
-  const nome = conversa.contact_name || formatarTelefone(conversa.phone);
+  const grupo = ehGrupo(conversa.phone);
+  const nome = conversa.contact_name || (grupo ? 'Grupo do WhatsApp' : formatarTelefone(conversa.phone));
   const { data: origens } = useAnunciosDeOrigem();
   const origem = origemDaConversa(origens, conversa);
   const resolvida = conversa.status === 'resolvida';
@@ -747,14 +750,16 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
               {conversa.unidade}
             </span>
             {conversa.interna && (
-              <span className="shrink-0 text-[11px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">Equipe</span>
+              <span className="shrink-0 text-[11px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                {grupo ? 'Grupo' : 'Equipe'}
+              </span>
             )}
             {resolvida && (
               <span className="shrink-0 text-[11px] px-1.5 py-0.5 rounded bg-green-100 text-green-800">Resolvida</span>
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            {formatarTelefone(conversa.phone)}
+            {grupo ? 'Grupo do WhatsApp da unidade' : formatarTelefone(conversa.phone)}
             {/* Conversa que a clínica começou não cria paciente sozinha, e sem
                 paciente não há como agendar. */}
             {!conversa.interna && !conversa.lead_id && (

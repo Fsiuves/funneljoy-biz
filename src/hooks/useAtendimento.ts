@@ -36,6 +36,8 @@ export interface Mensagem {
   id: string;
   created_at: string;
   body: string | null;
+  /** Quem escreveu, em mensagem de grupo (46-grupos-do-whatsapp.sql). */
+  autor?: string | null;
   message_type: string | null;
   is_from_me: boolean;
   timestamp_unix: number | null;
@@ -494,7 +496,10 @@ export function useConversasTempoReal(ativo: boolean) {
   }, [ativo, qc]);
 }
 
-const CAMPOS_MENSAGEM = 'id, created_at, body, message_type, is_from_me, timestamp_unix, sent_by, evolution_message_id';
+const CAMPOS_MENSAGEM = 'id, created_at, body, message_type, is_from_me, timestamp_unix, sent_by, evolution_message_id, autor';
+
+/** Grupo do WhatsApp da clínica: o telefone da conversa é o id do grupo (120363...@g.us). */
+export const ehGrupo = (phone: string | null | undefined) => !!phone?.endsWith('@g.us');
 const emOrdem = (lista: Mensagem[]) => [...lista].sort((a, b) => momentoMensagem(a) - momentoMensagem(b));
 
 /** Junta mensagens do banco às da tela; a "enviando" some quando a dela chega. */

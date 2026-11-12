@@ -2,3 +2,7 @@
 # schema `crm`. O valor anterior, dtgsdqcszvmioaoffmna, era o banco do Lovable,
 # aposentado na migracao: comando sem --project-ref ia para o lugar errado.
 project_id = "ygxlplfdrpkxqszesmtn"
+
+# Chamada pelo n8n, sem login: confere o segredo WA_GRUPO_SEGREDO no cabeçalho.
+[functions.wa-grupo]
+verify_jwt = false
