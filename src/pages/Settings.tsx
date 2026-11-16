@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
-import { Building2, Users, Bell, Palette, Shield, Database, MessageSquareText, PhoneOff, BellRing, Shuffle } from 'lucide-react';
+import { Tags, Building2, Users, Bell, Palette, Shield, Database, MessageSquareText, PhoneOff, BellRing, Shuffle } from 'lucide-react';
 import { CompanySettingsModal } from '@/components/settings/CompanySettingsModal';
 import { AppearanceSettingsModal } from '@/components/settings/AppearanceSettingsModal';
 import { TeamSettingsModal } from '@/components/settings/TeamSettingsModal';
 import { IntegrationSettingsModal } from '@/components/settings/IntegrationSettingsModal';
 import { QuickRepliesModal } from '@/components/settings/QuickRepliesModal';
+import { EtiquetasModal } from '@/components/settings/EtiquetasModal';
 import { TelefonesEquipeModal } from '@/components/settings/TelefonesEquipeModal';
 import { AvisosModal } from '@/components/settings/AvisosModal';
 import { RegrasAtendimentoModal } from '@/components/settings/RegrasAtendimentoModal';
@@ -14,7 +15,7 @@ import { useModulosAtivos } from '@/hooks/useAtendimento';
 import { useMeuPapel } from '@/hooks/useEmpresa';
 import { useMarca } from '@/hooks/useMarca';
 
-type ModalType = 'company' | 'team' | 'appearance' | 'integrations' | 'quickreplies' | 'internos' | 'avisos' | 'regras' | null;
+type ModalType = 'company' | 'team' | 'appearance' | 'integrations' | 'quickreplies' | 'etiquetas' | 'internos' | 'avisos' | 'regras' | null;
 
 const settingsSections = [
   {
@@ -75,6 +76,15 @@ const settingsSections = [
     modulo: 'atendimento',
   },
   {
+    id: 'etiquetas' as const,
+    icon: Tags,
+    title: 'Etiquetas',
+    description: 'Organizar as conversas, como no WhatsApp',
+    items: ['Criar', 'Cores', 'Do celular'],
+    enabled: true,
+    modulo: 'atendimento',
+  },
+  {
     id: 'internos' as const,
     icon: PhoneOff,
     title: 'Telefones da equipe',
@@ -110,7 +120,7 @@ export default function Settings() {
   const { marca } = useMarca();
   // Empresa, equipe e aparência só a direção altera (o banco recusa o resto);
   // para as outras funções ficam o número da unidade e as respostas prontas.
-  const DO_DIA_A_DIA = ['integrations', 'quickreplies'];
+  const DO_DIA_A_DIA = ['integrations', 'quickreplies', 'etiquetas'];
   const secoes = settingsSections.filter(
     (s) =>
       (!('modulo' in s) || modulos?.has((s as { modulo: string }).modulo)) &&
@@ -202,6 +212,10 @@ export default function Settings() {
       <QuickRepliesModal
         open={openModal === 'quickreplies'}
         onOpenChange={(open) => setOpenModal(open ? 'quickreplies' : null)}
+      />
+      <EtiquetasModal
+        open={openModal === 'etiquetas'}
+        onOpenChange={(open) => setOpenModal(open ? 'etiquetas' : null)}
       />
       <TelefonesEquipeModal
         open={openModal === 'internos'}

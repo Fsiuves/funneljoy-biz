@@ -12,6 +12,8 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { avisarConversaAberta } from '@/lib/presenca';
 import { chaveNome } from '@/lib/busca';
+import { ChipEtiqueta } from '@/components/atendimento/Etiquetas';
+import { useEtiquetas, useMarcacoes, type Etiqueta } from '@/hooks/useEtiquetas';
 import { toast } from 'sonner';
 import {
   useAtualizarConversa, useConversas, useEquipe, useModulosAtivos, useAnunciosDeOrigem, origemDaConversa, descreverOrigem,
@@ -46,6 +48,8 @@ interface ItemConversaProps {
   rascunho?: Rascunho;
   /** No filtro "Aguardando resposta": desde quando o paciente espera, no lugar da hora. */
   esperando?: string | null;
+  /** Etiquetas da conversa; "celular" quando vieram do WhatsApp do celular. */
+  etiquetas?: { e: Etiqueta; celular: boolean }[];
   aoAbrir: (id: string) => void;
 }
 
@@ -53,7 +57,7 @@ interface ItemConversaProps {
  * Uma linha da fila. Com memo, mensagem nova redesenha só a conversa que mudou,
  * não as 500 da lista.
  */
-const ItemConversa = memo(function ItemConversa({ c, ativa, responsavel, mostrarUnidade, anuncio, rascunho, esperando, aoAbrir }: ItemConversaProps) {
+const ItemConversa = memo(function ItemConversa({ c, ativa, responsavel, mostrarUnidade, anuncio, rascunho, esperando, etiquetas, aoAbrir }: ItemConversaProps) {
   const nome = c.contact_name || (ehGrupo(c.phone) ? 'Grupo do WhatsApp' : formatarTelefone(c.phone));
   return (
     <button
@@ -120,6 +124,12 @@ const ItemConversa = memo(function ItemConversa({ c, ativa, responsavel, mostrar
             )}
             <span className="text-[11px] text-muted-foreground truncate">{responsavel}</span>
           </div>
+          {etiquetas && etiquetas.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {etiquetas.slice(0, 3).map(({ e, celular }) => <ChipEtiqueta key={e.id} e={e} celular={celular} />)}
+              {etiquetas.length > 3 && <span className="text-[11px] text-muted-foreground">+{etiquetas.length - 3}</span>}
+            </div>
+          )}
         </div>
       </div>
     </button>
@@ -140,6 +150,20 @@ export default function Atendimento() {
 
   const [fila, setFila] = useState<Fila>('todas');
   const [situacao, setSituacao] = useState<Situacao>('abertas');
+  // Filtro por etiqueta: como a busca, vale em qualquer aba e fila.
+  const [etiquetaFiltro, setEtiquetaFiltro] = useState<string>(TODAS);
+  const { data: etiquetas = [] } = useEtiquetas(liberado);
+  const { data: marcacoes = [] } = useMarcacoes(liberado);
+  const etiquetasPorId = useMemo(() => new Map(etiquetas.map((e) => [e.id, e])), [etiquetas]);
+  const etiquetasDaConversa = useMemo(() => {
+    const m = new Map<string, { e: Etiqueta; celular: boolean }[]>();
+    for (const x of marcacoes) {
+      const e = etiquetasPorId.get(x.etiqueta_id);
+      if (!e) continue;
+      m.set(x.conversation_id, [...(m.get(x.conversation_id) ?? []), { e, celular: x.origem === 'whatsapp' }]);
+    }
+    return m;
+  }, [marcacoes, etiquetasPorId]);
   const resolvidas = situacao === 'resolvidas';
   const [unidade, setUnidade] = useState(TODAS);
   const [busca, setBusca] = useState('');
@@ -162,12 +186,19 @@ export default function Atendimento() {
     return Object.keys(rascunhos).filter((id) => !ids.has(id));
   }, [rascunhos, recentes, achadas, paginasAntigas]);
   const { data: dosRascunhos = [] } = useConversasPorIds(foraDaLista, liberado && !carregandoConversas);
+  // Conversas da etiqueta escolhida que estão fora das carregadas.
+  const daEtiquetaForaDaLista = useMemo(() => {
+    if (etiquetaFiltro === TODAS) return [];
+    const ids = new Set([...recentes, ...achadas, ...(paginasAntigas?.flat() ?? [])].map((c) => c.id));
+    return marcacoes.filter((m) => m.etiqueta_id === etiquetaFiltro && !ids.has(m.conversation_id)).map((m) => m.conversation_id);
+  }, [etiquetaFiltro, marcacoes, recentes, achadas, paginasAntigas]);
+  const { data: daEtiqueta = [] } = useConversasPorIds(daEtiquetaForaDaLista, liberado && etiquetaFiltro !== TODAS);
   // As que esperam resposta, buscadas à parte: as mais antigas podem estar fora das 500 da lista.
   const { data: esperandoNoServidor = [] } = useConversasAguardando(liberado);
   // Fixadas da unidade, também à parte (uma fixada antiga pode estar fora das 500).
   const { data: fixadasNoServidor = [] } = useConversasFixadas(liberado);
   const conversas = useMemo(() => {
-    const extras = [...achadas, ...(paginasAntigas?.flat() ?? []), ...(avulsa ? [avulsa] : []), ...dosRascunhos, ...esperandoNoServidor, ...fixadasNoServidor];
+    const extras = [...achadas, ...(paginasAntigas?.flat() ?? []), ...(avulsa ? [avulsa] : []), ...dosRascunhos, ...esperandoNoServidor, ...fixadasNoServidor, ...daEtiqueta];
     if (!extras.length) return recentes;
     const ids = new Set(recentes.map((c) => c.id));
     const novas: Conversa[] = [];
@@ -177,7 +208,7 @@ export default function Atendimento() {
       novas.push(c);
     }
     return novas.length ? [...recentes, ...novas] : recentes;
-  }, [recentes, achadas, paginasAntigas, avulsa, dosRascunhos, esperandoNoServidor, fixadasNoServidor]);
+  }, [recentes, achadas, paginasAntigas, avulsa, dosRascunhos, esperandoNoServidor, fixadasNoServidor, daEtiqueta]);
 
   const eu = equipe.find((p) => p.id === user?.id);
   const nomes = useMemo(() => new Map(equipe.map((p) => [p.id, p.name || p.email])), [equipe]);
@@ -208,8 +239,10 @@ export default function Atendimento() {
     const termo = chaveNome(busca.trim());
     const digitos = busca.replace(/\D/g, '');
     const noServidor = new Set(achadas.map((c) => c.id));
+    const filtrandoEtiqueta = etiquetaFiltro !== TODAS;
     const filtradas = conversas.filter((c) => {
       if (!naUnidade(c)) return false;
+      if (filtrandoEtiqueta && !etiquetasDaConversa.get(c.id)?.some(({ e }) => e.id === etiquetaFiltro)) return false;
       // Buscando, vale qualquer aba: quem procura um nome não sabe se a conversa
       // está aberta ou resolvida, nem com quem. Com rascunho, também: é trabalho
       // pendente de quem escreveu, em qualquer aba. Fixada aparece em Abertas em
@@ -217,7 +250,7 @@ export default function Atendimento() {
       // Em "Aguardando resposta" entra só quem espera, com ou sem rascunho.
       const passaDireto = situacao !== 'aguardando'
         && (comRascunho(c) || (situacao === 'abertas' && !!c.fixada_em));
-      if (!termo && !passaDireto) {
+      if (!termo && !filtrandoEtiqueta && !passaDireto) {
         if (situacao === 'aguardando') {
           if (!aguardando(c)) return false;
         } else if ((c.status === 'resolvida') !== resolvidas) return false;
@@ -246,7 +279,7 @@ export default function Atendimento() {
     if (!fixadas.length && !comTexto.length) return filtradas;
     return [...fixadas, ...comTexto, ...filtradas.filter((c) => !c.fixada_em && !comRascunho(c))];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversas, achadas, situacao, unidade, fila, busca, user?.id, rascunhos, abertaId]);
+  }, [conversas, achadas, situacao, unidade, fila, busca, user?.id, rascunhos, abertaId, etiquetaFiltro, etiquetasDaConversa]);
 
   // Fim da lista à vista: busca as próximas 500. Em fila com poucas conversas, segue
   // buscando até encher a tela ou acabar.
@@ -387,6 +420,23 @@ export default function Atendimento() {
               )}
             </div>
 
+            {etiquetas.length > 0 && (
+              <Select value={etiquetaFiltro} onValueChange={setEtiquetaFiltro}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={TODAS}>Todas as etiquetas</SelectItem>
+                  {etiquetas.filter((e) => unidade === TODAS || !e.unidade || e.unidade === unidade).map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      <span className="inline-flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: e.cor }} />
+                        {e.nome}{e.origem === 'whatsapp' ? ' (celular)' : ''}{unidades.length > 1 && e.unidade ? ` · ${e.unidade}` : ''}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
             <div className="flex gap-4 text-xs">
               <button
                 onClick={() => setSituacao('abertas')}
@@ -470,6 +520,7 @@ export default function Atendimento() {
                 anuncio={(() => { const o = origemDaConversa(origens, c); return o ? descreverOrigem(o) : undefined; })()}
                 rascunho={comRascunho(c) ? rascunhos[c.id] : undefined}
                 esperando={situacao === 'aguardando' && !busca.trim() ? c.aguardando_desde : undefined}
+                etiquetas={etiquetasDaConversa.get(c.id)}
                 aoAbrir={setAbertaId}
               />
             ))}
