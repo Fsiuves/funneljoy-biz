@@ -50,6 +50,8 @@ interface ConfigEmpresa {
     sequencia?: boolean;
     /** Dias até o novo contato com quem não fechou plano (30 se não definido). */
     dias_novo_contato?: number;
+    /** Plano e sessões que a renovação já sugere (supabase/sql/52-renovacao.sql). */
+    renovacao?: { plano?: string; sessoes?: number };
   };
   /** Campos do cadastro de vendas que a empresa não usa: false esconde. */
   formulario?: {

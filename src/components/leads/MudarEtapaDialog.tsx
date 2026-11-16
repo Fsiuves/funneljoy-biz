@@ -13,7 +13,8 @@ import {
 import { Loader2 } from 'lucide-react';
 import { useConfig, useEtapas } from '@/hooks/useEmpresa';
 import {
-  FORMAS, FORMA_DA_ETAPA, ROTULO_TIPO, TIPO_DA_ETAPA, lerValor, pedeData, pedeValor, useMudarEtapa, useUnidadesDaEmpresa,
+  ETAPA_RENOVACAO, ROTULO_TIPO, TIPO_DA_ETAPA, lerValor, pedeData, pedePlano, pedeValor, rotuloDoValor, useMudarEtapa,
+  useUnidadesDaEmpresa,
 } from '@/hooks/useAgenda';
 
 interface MudarEtapaDialogProps {
@@ -28,6 +29,7 @@ const AVISO: Record<string, string> = {
   compareceu: 'Fica registrado na Agenda que o paciente veio.',
   faltou: 'Fica registrado na Agenda que o paciente faltou.',
   totalpass: 'Segue o tratamento pelo TotalPass; a clínica recebe o repasse por visita.',
+  [ETAPA_RENOVACAO]: 'Entra em Planos como renovação. O plano de antes continua registrado.',
 };
 
 /**
@@ -37,7 +39,8 @@ const AVISO: Record<string, string> = {
 export function MudarEtapaDialog({ lead, etapa: etapaInicial, onClose }: MudarEtapaDialogProps) {
   const { etapas, rotulo } = useEtapas();
   const mudar = useMudarEtapa();
-  const dias = useConfig().config.funil?.dias_novo_contato ?? 30;
+  const { funil } = useConfig().config;
+  const dias = funil?.dias_novo_contato ?? 30;
   const { data: unidades = [] } = useUnidadesDaEmpresa();
   const [etapa, setEtapa] = useState('');
   // Onde é a avaliação; em outra unidade, o paciente passa para ela.
@@ -59,6 +62,13 @@ export function MudarEtapaDialog({ lead, etapa: etapaInicial, onClose }: MudarEt
     setUnidade(lead.unidade ?? '');
   }, [lead?.id, etapaInicial]);
 
+  // Renovação já vem com o plano de manutenção da clínica (config.funil.renovacao).
+  useEffect(() => {
+    if (etapa !== ETAPA_RENOVACAO) return;
+    setPlano((p) => p || funil?.renovacao?.plano || '');
+    setSessoes((s) => s || (funil?.renovacao?.sessoes ? String(funil.renovacao.sessoes) : ''));
+  }, [lead?.id, etapa, funil?.renovacao?.plano, funil?.renovacao?.sessoes]);
+
   const mudaUnidade = pedeData(etapa) && !!unidade && !!lead?.unidade && unidade !== lead.unidade;
 
   const salvar = () => {
@@ -75,7 +85,7 @@ export function MudarEtapaDialog({ lead, etapa: etapaInicial, onClose }: MudarEt
     if (pedeValor(etapa)) {
       v = lerValor(valor);
       if (!v) {
-        toast.error(`Informe o ${FORMAS[FORMA_DA_ETAPA[etapa]].valor.toLowerCase()}`);
+        toast.error(`Informe o ${rotuloDoValor(etapa).toLowerCase()}`);
         return;
       }
     }
@@ -147,10 +157,10 @@ export function MudarEtapaDialog({ lead, etapa: etapaInicial, onClose }: MudarEt
           {pedeValor(etapa) && (
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label>{FORMAS[FORMA_DA_ETAPA[etapa]].valor}</Label>
+                <Label>{rotuloDoValor(etapa)}</Label>
                 <Input inputMode="decimal" placeholder="Ex.: 1.500,00" value={valor} onChange={(e) => setValor(e.target.value)} />
               </div>
-              {FORMA_DA_ETAPA[etapa] === 'plano' && (
+              {pedePlano(etapa) && (
               <div className="grid grid-cols-[1fr_7rem] gap-2">
                 <div className="space-y-1.5">
                   <Label>Plano <span className="text-muted-foreground font-normal">(opcional)</span></Label>
