@@ -16,11 +16,24 @@ import { toast } from 'sonner';
 import {
   useAtualizarConversa, useConversas, useEquipe, useModulosAtivos, useAnunciosDeOrigem, origemDaConversa, descreverOrigem,
   useBuscaConversas, useConversaPorId, useConversasAntigas, useIniciarConversa, useRascunhos, useConversasPorIds, ehGrupo,
+  useConversasAguardando,
   type Conversa, type Rascunho,
 } from '@/hooks/useAtendimento';
 import { CornerUpLeft, Loader2, Megaphone, MessageCircle, Search, Smartphone } from 'lucide-react';
 
 type Fila = 'minhas' | 'sem' | 'todas';
+type Situacao = 'abertas' | 'aguardando' | 'resolvidas';
+
+/** Paciente esperando resposta de uma pessoa, numa conversa aberta (48-aguardando-resposta.sql). */
+const aguardando = (c: Conversa) => c.status === 'aberta' && !!c.aguardando_desde && !c.interna;
+
+/** "5 min", "3 h", "2 d": há quanto tempo o paciente espera. */
+function tempoDeEspera(desde: string): string {
+  const min = Math.max(0, Math.floor((Date.now() - Date.parse(desde)) / 60_000));
+  if (min < 60) return `${min} min`;
+  if (min < 24 * 60) return `${Math.floor(min / 60)} h`;
+  return `${Math.floor(min / (24 * 60))} d`;
+}
 
 interface ItemConversaProps {
   c: Conversa;
@@ -31,6 +44,8 @@ interface ItemConversaProps {
   anuncio?: string;
   /** Texto deixado escrito por quem está logado, fora da conversa aberta. */
   rascunho?: Rascunho;
+  /** No filtro "Aguardando resposta": desde quando o paciente espera, no lugar da hora. */
+  esperando?: string | null;
   aoAbrir: (id: string) => void;
 }
 
@@ -38,7 +53,7 @@ interface ItemConversaProps {
  * Uma linha da fila. Com memo, mensagem nova redesenha só a conversa que mudou,
  * não as 500 da lista.
  */
-const ItemConversa = memo(function ItemConversa({ c, ativa, responsavel, mostrarUnidade, anuncio, rascunho, aoAbrir }: ItemConversaProps) {
+const ItemConversa = memo(function ItemConversa({ c, ativa, responsavel, mostrarUnidade, anuncio, rascunho, esperando, aoAbrir }: ItemConversaProps) {
   const nome = c.contact_name || (ehGrupo(c.phone) ? 'Grupo do WhatsApp' : formatarTelefone(c.phone));
   return (
     <button
@@ -56,9 +71,15 @@ const ItemConversa = memo(function ItemConversa({ c, ativa, responsavel, mostrar
             <p className={`truncate ${c.unread_count > 0 ? 'font-semibold' : 'font-medium'} text-foreground`}>
               {nome}
             </p>
-            <span className={`text-xs shrink-0 ${c.unread_count > 0 ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
-              {rotuloHora(rascunho?.atualizado_em ?? c.last_message_at)}
-            </span>
+            {esperando ? (
+              <span className="text-xs shrink-0 font-semibold text-amber-700" title={`Esperando resposta desde ${new Date(esperando).toLocaleString('pt-BR')}`}>
+                há {tempoDeEspera(esperando)}
+              </span>
+            ) : (
+              <span className={`text-xs shrink-0 ${c.unread_count > 0 ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
+                {rotuloHora(rascunho?.atualizado_em ?? c.last_message_at)}
+              </span>
+            )}
           </div>
           <div className="flex items-center justify-between gap-2 mt-0.5">
             <p className="text-sm text-muted-foreground truncate flex items-center gap-1">
@@ -117,7 +138,8 @@ export default function Atendimento() {
   const atualizar = useAtualizarConversa();
 
   const [fila, setFila] = useState<Fila>('todas');
-  const [resolvidas, setResolvidas] = useState(false);
+  const [situacao, setSituacao] = useState<Situacao>('abertas');
+  const resolvidas = situacao === 'resolvidas';
   const [unidade, setUnidade] = useState(TODAS);
   const [busca, setBusca] = useState('');
   const [parametros] = useSearchParams();
@@ -139,8 +161,10 @@ export default function Atendimento() {
     return Object.keys(rascunhos).filter((id) => !ids.has(id));
   }, [rascunhos, recentes, achadas, paginasAntigas]);
   const { data: dosRascunhos = [] } = useConversasPorIds(foraDaLista, liberado && !carregandoConversas);
+  // As que esperam resposta, buscadas à parte: as mais antigas podem estar fora das 500 da lista.
+  const { data: esperandoNoServidor = [] } = useConversasAguardando(liberado);
   const conversas = useMemo(() => {
-    const extras = [...achadas, ...(paginasAntigas?.flat() ?? []), ...(avulsa ? [avulsa] : []), ...dosRascunhos];
+    const extras = [...achadas, ...(paginasAntigas?.flat() ?? []), ...(avulsa ? [avulsa] : []), ...dosRascunhos, ...esperandoNoServidor];
     if (!extras.length) return recentes;
     const ids = new Set(recentes.map((c) => c.id));
     const novas: Conversa[] = [];
@@ -150,7 +174,7 @@ export default function Atendimento() {
       novas.push(c);
     }
     return novas.length ? [...recentes, ...novas] : recentes;
-  }, [recentes, achadas, paginasAntigas, avulsa, dosRascunhos]);
+  }, [recentes, achadas, paginasAntigas, avulsa, dosRascunhos, esperandoNoServidor]);
 
   const eu = equipe.find((p) => p.id === user?.id);
   const nomes = useMemo(() => new Map(equipe.map((p) => [p.id, p.name || p.email])), [equipe]);
@@ -162,14 +186,16 @@ export default function Atendimento() {
 
   const contagem = useMemo(() => {
     const abertas = conversas.filter((c) => c.status === 'aberta' && naUnidade(c));
+    const daFila = (c: Conversa) => fila === 'todas' || (fila === 'minhas' ? c.assigned_to === user?.id : !c.assigned_to);
     return {
       minhas: abertas.filter((c) => c.assigned_to === user?.id).length,
       // Grupo é da equipe toda e nunca tem dono: não é paciente esperando alguém pegar.
       sem: abertas.filter((c) => !c.assigned_to && !ehGrupo(c.phone)).length,
       todas: abertas.length,
+      aguardando: abertas.filter((c) => aguardando(c) && daFila(c)).length,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversas, unidade, user?.id]);
+  }, [conversas, unidade, user?.id, fila]);
 
   // Rascunho aparece ao sair da conversa (pedido da clínica em 12/11/2026): a aberta
   // fica no lugar dela enquanto a pessoa escreve.
@@ -183,9 +209,12 @@ export default function Atendimento() {
       if (!naUnidade(c)) return false;
       // Buscando, vale qualquer aba: quem procura um nome não sabe se a conversa
       // está aberta ou resolvida, nem com quem. Com rascunho, também: é trabalho
-      // pendente de quem escreveu, em qualquer aba.
-      if (!termo && !comRascunho(c)) {
-        if ((c.status === 'resolvida') !== resolvidas) return false;
+      // pendente de quem escreveu, em qualquer aba. Em "Aguardando resposta" entra só
+      // quem espera, com ou sem rascunho.
+      if (!termo && (situacao === 'aguardando' || !comRascunho(c))) {
+        if (situacao === 'aguardando') {
+          if (!aguardando(c)) return false;
+        } else if ((c.status === 'resolvida') !== resolvidas) return false;
         if (fila === 'minhas' && c.assigned_to !== user?.id) return false;
         if (fila === 'sem' && (c.assigned_to || ehGrupo(c.phone))) return false;
       }
@@ -198,12 +227,16 @@ export default function Atendimento() {
       }
       return true;
     });
+    // Aguardando resposta: quem espera há mais tempo primeiro (pedido da clínica em 12/11/2026).
+    if (situacao === 'aguardando' && !termo) {
+      return [...filtradas].sort((a, b) => Date.parse(a.aguardando_desde ?? '') - Date.parse(b.aguardando_desde ?? ''));
+    }
     // As com rascunho no topo, a mais recente primeiro; as outras na ordem de sempre.
     const fixas = filtradas.filter(comRascunho)
       .sort((a, b) => rascunhos[b.id].atualizado_em.localeCompare(rascunhos[a.id].atualizado_em));
     return fixas.length ? [...fixas, ...filtradas.filter((c) => !comRascunho(c))] : filtradas;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversas, achadas, resolvidas, unidade, fila, busca, user?.id, rascunhos, abertaId]);
+  }, [conversas, achadas, situacao, unidade, fila, busca, user?.id, rascunhos, abertaId]);
 
   // Fim da lista à vista: busca as próximas 500. Em fila com poucas conversas, segue
   // buscando até encher a tela ou acabar.
@@ -346,14 +379,22 @@ export default function Atendimento() {
 
             <div className="flex gap-4 text-xs">
               <button
-                onClick={() => setResolvidas(false)}
-                className={!resolvidas ? 'font-semibold text-foreground' : 'text-muted-foreground'}
+                onClick={() => setSituacao('abertas')}
+                className={situacao === 'abertas' ? 'font-semibold text-foreground' : 'text-muted-foreground'}
               >
                 Abertas
               </button>
               <button
-                onClick={() => setResolvidas(true)}
-                className={resolvidas ? 'font-semibold text-foreground' : 'text-muted-foreground'}
+                onClick={() => setSituacao('aguardando')}
+                className={situacao === 'aguardando' ? 'font-semibold text-foreground' : 'text-muted-foreground'}
+                title="Pacientes esperando resposta, de quem espera há mais tempo para quem espera há menos"
+              >
+                Aguardando resposta
+                {contagem.aguardando > 0 && <span className="ml-1 text-amber-700 font-semibold">{contagem.aguardando}</span>}
+              </button>
+              <button
+                onClick={() => setSituacao('resolvidas')}
+                className={situacao === 'resolvidas' ? 'font-semibold text-foreground' : 'text-muted-foreground'}
               >
                 Resolvidas
               </button>
@@ -403,7 +444,9 @@ export default function Atendimento() {
                   </div>
                 </div>
               ) : (
-                <p className="px-6 py-10 text-center text-sm text-muted-foreground">Nada nesta fila.</p>
+                <p className="px-6 py-10 text-center text-sm text-muted-foreground">
+                  {situacao === 'aguardando' && !busca.trim() ? 'Ninguém esperando resposta nesta fila.' : 'Nada nesta fila.'}
+                </p>
               )
             )}
 
@@ -416,6 +459,7 @@ export default function Atendimento() {
                 mostrarUnidade={unidades.length > 1}
                 anuncio={(() => { const o = origemDaConversa(origens, c); return o ? descreverOrigem(o) : undefined; })()}
                 rascunho={comRascunho(c) ? rascunhos[c.id] : undefined}
+                esperando={situacao === 'aguardando' && !busca.trim() ? c.aguardando_desde : undefined}
                 aoAbrir={setAbertaId}
               />
             ))}
