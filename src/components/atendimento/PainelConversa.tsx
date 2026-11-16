@@ -7,7 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   CheckCircle2, RotateCcw, Send, Zap, Loader2, UserPlus, ExternalLink,
   Image as ImageIcon, Mic, Video, FileText, MapPin, Contact, Smile, PhoneOff, CalendarPlus, CalendarCheck,
-  Paperclip, X, Square, Trash2, Megaphone, ListPlus,
+  Paperclip, X, Square, Trash2, Megaphone, ListPlus, Pin, PinOff,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -817,6 +817,16 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
               <span className="hidden 2xl:inline">Assumir</span>
             </Button>
           )}
+
+          {/* Fixar vale para a unidade inteira (decisão do Fred em 16/11/2026). */}
+          <Button
+            size="icon"
+            variant="ghost"
+            title={conversa.fixada_em ? 'Desafixar' : 'Fixar no topo para a unidade'}
+            onClick={() => mudar({ id: conversa.id, fixada_em: conversa.fixada_em ? null : new Date().toISOString() })}
+          >
+            {conversa.fixada_em ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
+          </Button>
 
           <Button
             size="sm"

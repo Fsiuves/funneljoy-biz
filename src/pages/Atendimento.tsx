@@ -16,10 +16,10 @@ import { toast } from 'sonner';
 import {
   useAtualizarConversa, useConversas, useEquipe, useModulosAtivos, useAnunciosDeOrigem, origemDaConversa, descreverOrigem,
   useBuscaConversas, useConversaPorId, useConversasAntigas, useIniciarConversa, useRascunhos, useConversasPorIds, ehGrupo,
-  useConversasAguardando,
+  useConversasAguardando, useConversasFixadas,
   type Conversa, type Rascunho,
 } from '@/hooks/useAtendimento';
-import { CornerUpLeft, Loader2, Megaphone, MessageCircle, Search, Smartphone } from 'lucide-react';
+import { CornerUpLeft, Loader2, Megaphone, MessageCircle, Pin, Search, Smartphone } from 'lucide-react';
 
 type Fila = 'minhas' | 'sem' | 'todas';
 type Situacao = 'abertas' | 'aguardando' | 'resolvidas';
@@ -68,8 +68,9 @@ const ItemConversa = memo(function ItemConversa({ c, ativa, responsavel, mostrar
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <p className={`truncate ${c.unread_count > 0 ? 'font-semibold' : 'font-medium'} text-foreground`}>
-              {nome}
+            <p className={`truncate flex items-center gap-1 ${c.unread_count > 0 ? 'font-semibold' : 'font-medium'} text-foreground`}>
+              {c.fixada_em && <Pin className="w-3.5 h-3.5 shrink-0 text-muted-foreground" aria-label="Fixada" />}
+              <span className="truncate">{nome}</span>
             </p>
             {esperando ? (
               <span className="text-xs shrink-0 font-semibold text-amber-700" title={`Esperando resposta desde ${new Date(esperando).toLocaleString('pt-BR')}`}>
@@ -163,8 +164,10 @@ export default function Atendimento() {
   const { data: dosRascunhos = [] } = useConversasPorIds(foraDaLista, liberado && !carregandoConversas);
   // As que esperam resposta, buscadas à parte: as mais antigas podem estar fora das 500 da lista.
   const { data: esperandoNoServidor = [] } = useConversasAguardando(liberado);
+  // Fixadas da unidade, também à parte (uma fixada antiga pode estar fora das 500).
+  const { data: fixadasNoServidor = [] } = useConversasFixadas(liberado);
   const conversas = useMemo(() => {
-    const extras = [...achadas, ...(paginasAntigas?.flat() ?? []), ...(avulsa ? [avulsa] : []), ...dosRascunhos, ...esperandoNoServidor];
+    const extras = [...achadas, ...(paginasAntigas?.flat() ?? []), ...(avulsa ? [avulsa] : []), ...dosRascunhos, ...esperandoNoServidor, ...fixadasNoServidor];
     if (!extras.length) return recentes;
     const ids = new Set(recentes.map((c) => c.id));
     const novas: Conversa[] = [];
@@ -174,7 +177,7 @@ export default function Atendimento() {
       novas.push(c);
     }
     return novas.length ? [...recentes, ...novas] : recentes;
-  }, [recentes, achadas, paginasAntigas, avulsa, dosRascunhos, esperandoNoServidor]);
+  }, [recentes, achadas, paginasAntigas, avulsa, dosRascunhos, esperandoNoServidor, fixadasNoServidor]);
 
   const eu = equipe.find((p) => p.id === user?.id);
   const nomes = useMemo(() => new Map(equipe.map((p) => [p.id, p.name || p.email])), [equipe]);
@@ -209,9 +212,12 @@ export default function Atendimento() {
       if (!naUnidade(c)) return false;
       // Buscando, vale qualquer aba: quem procura um nome não sabe se a conversa
       // está aberta ou resolvida, nem com quem. Com rascunho, também: é trabalho
-      // pendente de quem escreveu, em qualquer aba. Em "Aguardando resposta" entra só
-      // quem espera, com ou sem rascunho.
-      if (!termo && (situacao === 'aguardando' || !comRascunho(c))) {
+      // pendente de quem escreveu, em qualquer aba. Fixada aparece em Abertas em
+      // qualquer fila: vale para a unidade inteira (decisão do Fred em 16/11/2026).
+      // Em "Aguardando resposta" entra só quem espera, com ou sem rascunho.
+      const passaDireto = situacao !== 'aguardando'
+        && (comRascunho(c) || (situacao === 'abertas' && !!c.fixada_em));
+      if (!termo && !passaDireto) {
         if (situacao === 'aguardando') {
           if (!aguardando(c)) return false;
         } else if ((c.status === 'resolvida') !== resolvidas) return false;
@@ -231,10 +237,14 @@ export default function Atendimento() {
     if (situacao === 'aguardando' && !termo) {
       return [...filtradas].sort((a, b) => Date.parse(a.aguardando_desde ?? '') - Date.parse(b.aguardando_desde ?? ''));
     }
-    // As com rascunho no topo, a mais recente primeiro; as outras na ordem de sempre.
-    const fixas = filtradas.filter(comRascunho)
+    // No topo: as fixadas (a fixada por último primeiro), depois as com rascunho (a
+    // mais recente primeiro); as outras na ordem de sempre.
+    const fixadas = filtradas.filter((c) => c.fixada_em)
+      .sort((a, b) => (b.fixada_em ?? '').localeCompare(a.fixada_em ?? ''));
+    const comTexto = filtradas.filter((c) => !c.fixada_em && comRascunho(c))
       .sort((a, b) => rascunhos[b.id].atualizado_em.localeCompare(rascunhos[a.id].atualizado_em));
-    return fixas.length ? [...fixas, ...filtradas.filter((c) => !comRascunho(c))] : filtradas;
+    if (!fixadas.length && !comTexto.length) return filtradas;
+    return [...fixadas, ...comTexto, ...filtradas.filter((c) => !c.fixada_em && !comRascunho(c))];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversas, achadas, situacao, unidade, fila, busca, user?.id, rascunhos, abertaId]);
 
