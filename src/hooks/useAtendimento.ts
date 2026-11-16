@@ -30,6 +30,8 @@ export interface Conversa {
   updated_at: string;
   /** Telefone da equipe (sócios, recepção): aparece no atendimento, não é paciente. */
   interna?: boolean;
+  /** Desde quando o paciente espera resposta de uma pessoa; nulo = ninguém esperando (48-aguardando-resposta.sql). */
+  aguardando_desde?: string | null;
 }
 
 export interface Mensagem {
@@ -404,6 +406,32 @@ export function useConversas(ativo = true) {
         .limit(500);
       if (error) throw error;
       return comMudancasRecentes((data ?? []) as Conversa[]);
+    },
+  });
+}
+
+/**
+ * Conversas abertas com paciente esperando resposta, da espera mais antiga para a
+ * mais nova (pedido da clínica em 12/11/2026). Vêm do servidor porque as que
+ * esperam há mais tempo podem estar fora das 500 mais recentes da lista.
+ */
+export function useConversasAguardando(ativo = true) {
+  return useQuery({
+    queryKey: ['conversas', 'aguardando'],
+    enabled: ativo,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { data, error } = await crm
+        .from('conversations')
+        .select('*')
+        .eq('status', 'aberta')
+        .eq('interna', false)
+        .not('aguardando_desde', 'is', null)
+        .order('aguardando_desde', { ascending: true })
+        .limit(1000);
+      if (error) throw error;
+      return (data ?? []) as Conversa[];
     },
   });
 }
