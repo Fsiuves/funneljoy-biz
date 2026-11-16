@@ -6,3 +6,7 @@ project_id = "ygxlplfdrpkxqszesmtn"
 # Chamada pelo n8n, sem login: confere o segredo WA_GRUPO_SEGREDO no cabeçalho.
 [functions.wa-grupo]
 verify_jwt = false
+
+# Chamada pelo servidor da Evolution, sem login: confere o segredo WA_ETIQUETAS_SEGREDO.
+[functions.wa-etiquetas]
+verify_jwt = false
