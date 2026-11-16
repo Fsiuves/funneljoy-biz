@@ -32,6 +32,9 @@ export interface Conversa {
   interna?: boolean;
   /** Desde quando o paciente espera resposta de uma pessoa; nulo = ninguém esperando (48-aguardando-resposta.sql). */
   aguardando_desde?: string | null;
+  /** Fixada no topo para a unidade inteira (49-fixar-conversa.sql); a hora é a do servidor. */
+  fixada_em?: string | null;
+  fixada_por?: string | null;
 }
 
 export interface Mensagem {
@@ -436,6 +439,26 @@ export function useConversasAguardando(ativo = true) {
   });
 }
 
+/** Conversas fixadas da unidade: podem estar fora das 500 mais recentes da lista. */
+export function useConversasFixadas(ativo = true) {
+  return useQuery({
+    queryKey: ['conversas', 'fixadas'],
+    enabled: ativo,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { data, error } = await crm
+        .from('conversations')
+        .select('*')
+        .not('fixada_em', 'is', null)
+        .order('fixada_em', { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return (data ?? []) as Conversa[];
+    },
+  });
+}
+
 const POR_PAGINA = 500;
 
 /**
@@ -729,7 +752,7 @@ export function useEnviarMensagem() {
   });
 }
 
-type CamposConversa = Partial<Pick<Conversa, 'assigned_to' | 'status' | 'unread_count'>>;
+type CamposConversa = Partial<Pick<Conversa, 'assigned_to' | 'status' | 'unread_count' | 'fixada_em'>>;
 
 export function useAtualizarConversa() {
   const qc = useQueryClient();
