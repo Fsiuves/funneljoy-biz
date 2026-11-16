@@ -17,6 +17,7 @@ import {
 import { useMeuPapel } from '@/hooks/useEmpresa';
 import { useAuth } from '@/hooks/useAuth';
 import { QuickRepliesModal } from '@/components/settings/QuickRepliesModal';
+import { EtiquetasDaConversa } from '@/components/atendimento/Etiquetas';
 import { Button } from '@/components/ui/button';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -782,6 +783,7 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
               </>
             )}
           </p>
+          <EtiquetasDaConversa conversaId={conversa.id} unidade={conversa.unidade} />
           {origem && (
             <p className="mt-0.5 flex items-center gap-1 text-xs text-amber-900 min-w-0" title={[origem.campanha, origem.conjunto, origem.anuncio].filter(Boolean).join(' · ')}>
               <Megaphone className="w-3.5 h-3.5 shrink-0" />
