@@ -185,9 +185,21 @@ export const TIPO_DA_ETAPA: Record<string, TipoHorario> = { agendou: 'avaliacao'
 export const FORMA_DA_ETAPA: Record<string, FormaFechamento> = {
   fechou_plano: 'plano', mes_a_mes: 'mes_a_mes', avulso: 'avulso', totalpass: 'totalpass',
 };
+/**
+ * Renovação (supabase/sql/52-renovacao.sql): quando o plano termina, a recepção
+ * oferece o plano de manutenção. Registro próprio em crm.renovacoes, fora da Agenda;
+ * o fechamento de antes fica.
+ */
+export const ETAPA_RENOVACAO = 'renovou';
 export const pedeData = (etapa: string) => Object.prototype.hasOwnProperty.call(TIPO_DA_ETAPA, etapa);
 export const pedeValor = (etapa: string) =>
-  Object.prototype.hasOwnProperty.call(FORMA_DA_ETAPA, etapa) && !FORMAS[FORMA_DA_ETAPA[etapa]].semValor;
+  etapa === ETAPA_RENOVACAO ||
+  (Object.prototype.hasOwnProperty.call(FORMA_DA_ETAPA, etapa) && !FORMAS[FORMA_DA_ETAPA[etapa]].semValor);
+/** O que o campo de valor pede: "Valor do plano", "Valor da renovação"... */
+export const rotuloDoValor = (etapa: string) =>
+  etapa === ETAPA_RENOVACAO ? 'Valor da renovação' : FORMAS[FORMA_DA_ETAPA[etapa]]?.valor ?? 'Valor';
+/** Etapas que pedem também o nome do plano e as sessões. */
+export const pedePlano = (etapa: string) => etapa === ETAPA_RENOVACAO || FORMA_DA_ETAPA[etapa] === 'plano';
 
 export const reais = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -212,22 +224,64 @@ export interface PlanoFechado {
   fechamento_em: string | null;
   fechamento_por: string | null;
   forma_fechamento: FormaFechamento | null;
+  /** Veio de crm.renovacoes (52-renovacao.sql), não de um fechamento da Agenda. */
+  renovacao?: boolean;
   leads?: { name: string | null; phone: string | null } | null;
 }
 
-/** Quem fechou (plano, mês a mês ou avulso), do mais recente para o mais antigo (aba Planos). */
+interface LinhaRenovacao {
+  id: string;
+  lead_id: string;
+  unidade: string | null;
+  valor: number;
+  plano: string | null;
+  sessoes: number | null;
+  registrada_em: string;
+  registrada_por: string | null;
+  leads?: { name: string | null; phone: string | null } | null;
+}
+
+/** As renovações, do mais recente para o mais antigo, no formato da aba Planos. */
+async function buscarRenovacoes(): Promise<PlanoFechado[]> {
+  const linhas = await buscarTudo<LinhaRenovacao>((de, ate) => crm
+    .from('renovacoes')
+    .select('id, lead_id, unidade, valor, plano, sessoes, registrada_em, registrada_por, leads(name, phone)')
+    .order('registrada_em', { ascending: false })
+    .order('id')
+    .range(de, ate));
+  return linhas.map((r) => ({
+    id: r.id, lead_id: r.lead_id, unidade: r.unidade, valor_plano: r.valor, plano: r.plano, sessoes: r.sessoes,
+    fechamento_em: r.registrada_em, fechamento_por: r.registrada_por, forma_fechamento: null, renovacao: true,
+    leads: r.leads,
+  }));
+}
+
+/** Quem fechou (plano, mês a mês ou avulso) e quem renovou, do mais recente para o mais antigo (aba Planos). */
 export function usePlanos() {
   return useQuery({
     queryKey: ['avaliacoes', 'planos'],
     queryFn: async () => {
-      return buscarTudo<PlanoFechado>((de, ate) => crm
-        .from('avaliacoes')
-        .select('id, lead_id, unidade, valor_plano, plano, sessoes, fechamento_em, fechamento_por, forma_fechamento, leads(name, phone)')
-        .eq('fechou_plano', true)
-        .neq('status', 'cancelada')
-        .order('fechamento_em', { ascending: false })
-        .order('id')
-        .range(de, ate));
+      const [fechamentos, renovacoes] = await Promise.all([
+        buscarTudo<PlanoFechado>((de, ate) => crm
+          .from('avaliacoes')
+          .select('id, lead_id, unidade, valor_plano, plano, sessoes, fechamento_em, fechamento_por, forma_fechamento, leads(name, phone)')
+          .eq('fechou_plano', true)
+          .neq('status', 'cancelada')
+          .order('fechamento_em', { ascending: false })
+          .order('id')
+          .range(de, ate)),
+        buscarRenovacoes(),
+      ]);
+      return [...fechamentos, ...renovacoes].sort((a, b) => (b.fechamento_em ?? '').localeCompare(a.fechamento_em ?? ''));
     },
   });
 }
+
+/** Só as renovações (Resultados mostra à parte dos anúncios). */
+export function useRenovacoes() {
+  return useQuery({ queryKey: ['avaliacoes', 'renovacoes'], queryFn: buscarRenovacoes });
+}
+
+/** Renovação lançada errada: sai, e o paciente volta para onde estava (crm.desfazer_renovacao). */
+export const useDesfazerRenovacao = () =>
+  useRegistro((id: string) => chamar('desfazer_renovacao', { _id: id }));

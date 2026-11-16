@@ -10,7 +10,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { AlertTriangle, ChevronDown, ChevronRight, Info, Loader2, RefreshCw } from 'lucide-react';
-import { reais } from '@/hooks/useAgenda';
+import { reais, useRenovacoes } from '@/hooks/useAgenda';
 import {
   useResultados, useSincronizacao, useSincronizar, type LinhaResultado,
 } from '@/hooks/useResultados';
@@ -78,6 +78,8 @@ export default function Resultados() {
 
   const { data: linhas = [], isLoading, isError, isFetching, refetch } = useResultados(de, ate);
   const { data: sync } = useSincronizacao();
+  // Renovações (52-renovacao.sql): à parte, porque não vêm de anúncio.
+  const { data: renovacoes = [] } = useRenovacoes();
   const sincronizar = useSincronizar();
 
   // Dados com mais de uma hora: busca de novo no Vigia, uma vez por abertura da tela.
@@ -220,6 +222,21 @@ export default function Resultados() {
         <Numero rotulo="Fecharam plano" valor={numero(total.fecharam)} extra={total.valor > 0 ? reais(total.valor) : undefined} />
         <Numero rotulo="Custo por agendamento" valor={custo(meta.gasto, meta.agendaram)} extra="anúncios da Meta" />
       </div>
+
+      {renovacoes.length > 0 && (() => {
+        const doPeriodo = renovacoes.filter((r) => {
+          const d = r.fechamento_em ? dia(new Date(r.fechamento_em)) : '';
+          return d >= de && d <= ate && (unidade === TODAS || r.unidade === unidade);
+        });
+        const valor = doPeriodo.reduce((s, r) => s + Number(r.valor_plano ?? 0), 0);
+        return (
+          <p className="-mt-3 mb-6 text-sm text-muted-foreground">
+            Renovações no período: <span className="font-semibold text-foreground">{numero(doPeriodo.length)}</span>
+            {valor > 0 && <> · <span className="font-semibold text-foreground">{reais(valor)}</span></>}.
+            Ficam fora dos números acima, que contam quem chegou pelos anúncios e conversas do período.
+          </p>
+        );
+      })()}
 
       <div className="rounded-xl border bg-card overflow-x-auto">
         <table className="w-full text-sm">
