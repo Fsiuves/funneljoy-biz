@@ -170,8 +170,8 @@ export function EtiquetasModal({ open, onOpenChange }: { open: boolean; onOpenCh
               {doCelular.map((e) => linha(e, false))}
               {!isLoading && etiquetas.length === 0 && (
                 <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  Nenhuma etiqueta ainda. Comece pelas que vocês já usam no celular: Agendaram, Não fecharam plano,
-                  Cancelamento, Influencer.
+                  Nenhuma etiqueta ainda. As do celular aparecem aqui sozinhas; crie no CRM só as que não existem
+                  no celular.
                 </div>
               )}
             </div>
