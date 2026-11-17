@@ -12,10 +12,16 @@
 --    prévia nem o responsável. Reação do paciente segue sem efeito.
 -- 2. Acerto: conversas com reação da clínica depois do começo da espera saem
 --    do "Aguardando resposta".
+-- 3. crm.esperando_resposta usa a mesma espera (aguardando_desde). Ela conta
+--    quem está esperando no Painel da recepção, no aviso de espera e no resumo
+--    do dia (crm.situacao_unidades e crm.avisos_pendentes), e contava pela
+--    última mensagem ser do paciente: a reação da clínica não mudava nada lá.
 --
--- Não precisa de tela nova: a tela lê aguardando_desde.
--- Desfazer: reaplicar a função da 48 (o acerto não volta; a espera recomeça na
--- próxima mensagem do paciente).
+-- Não precisa de tela nova: as telas leem aguardando_desde e o Painel lê
+-- crm.painel_recepcao.
+-- Desfazer: reaplicar a função da 48 e a crm.esperando_resposta de antes
+-- (texto no fim deste arquivo). O acerto não volta; a espera recomeça na
+-- próxima mensagem do paciente.
 
 begin;
 
@@ -244,4 +250,45 @@ update crm.conversations c
                   and m.is_from_me and m.message_type = 'reactionMessage'
                   and coalesce(to_timestamp(nullif(m.timestamp_unix, 0)), m.created_at) >= c.aguardando_desde);
 
+
+-- ---------------------------------------------------------------- 3
+CREATE OR REPLACE FUNCTION crm.esperando_resposta(_tenant uuid)
+ RETURNS TABLE(unidade text, conversa_id uuid, nome text, desde timestamp with time zone, assigned_to uuid)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'crm', 'public'
+AS $function$
+  -- Desde quando o paciente espera: a mesma espera do "Aguardando resposta"
+  -- (48-aguardando-resposta.sql e 53-reacao-responde.sql). Resposta de uma
+  -- pessoa ou reação da clínica zera; a saudação automática não.
+  select c.unidade, c.id,
+         coalesce(nullif(btrim(l.name), ''), c.contact_name, '+' || c.phone),
+         c.aguardando_desde,
+         c.assigned_to
+    from crm.conversations c
+    left join crm.leads l on l.id = c.lead_id
+   where c.tenant_id = _tenant and c.status = 'aberta' and not c.interna
+     and c.aguardando_desde is not null and c.unidade is not null;
+$function$;
+
 commit;
+
+-- ---------------------------------------------------------------- desfazer o 3
+-- crm.esperando_resposta como estava no banco em 17/11/2026:
+-- CREATE OR REPLACE FUNCTION crm.esperando_resposta(_tenant uuid)
+--  RETURNS TABLE(unidade text, conversa_id uuid, nome text, desde timestamp with time zone, assigned_to uuid)
+--  LANGUAGE sql
+--  STABLE SECURITY DEFINER
+--  SET search_path TO 'crm', 'public'
+-- AS $function$
+--   select c.unidade, c.id,
+--          coalesce(nullif(btrim(l.name), ''), c.contact_name, '+' || c.phone),
+--          coalesce((select min(r.inbound_at) from public.response_times r
+--                     where r.lead_id = c.radar_lead_id and r.status = 'pending'),
+--                   c.last_inbound_at, c.last_message_at),
+--          c.assigned_to
+--     from crm.conversations c
+--     left join crm.leads l on l.id = c.lead_id
+--    where c.tenant_id = _tenant and c.status = 'aberta' and not c.interna
+--      and not coalesce(c.last_message_from_me, false) and c.unidade is not null;
+-- $function$;
