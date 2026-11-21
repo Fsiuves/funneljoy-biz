@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Phone, MessageSquare, CheckCircle2, Clock, XCircle, Loader2, ChevronDown, ChevronUp, Target, Copy, Trash2, Globe, Instagram, Pencil, Save, X, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { linkSeguro } from '@/lib/link';
 
 const SUPABASE_PIA_URL = 'https://sjspfkzxyfipuamvbswd.supabase.co';
 const SUPABASE_PIA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqc3Bma3p4eWZpcHVhbXZic3dkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2ODE4MzUsImV4cCI6MjA4NDI1NzgzNX0.UtQNcAlgxuVndCfeay2nRQW9xi4MbblzKGXwXED5xpQ';
@@ -362,9 +363,9 @@ export function ProspectsTab() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
-                            {p.website ? (
+                            {linkSeguro(p.website) ? (
                               <a
-                                href={p.website}
+                                href={linkSeguro(p.website)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
@@ -375,9 +376,9 @@ export function ProspectsTab() {
                             ) : (
                               <span className="p-1.5 text-muted-foreground/30"><Globe className="w-4 h-4" /></span>
                             )}
-                            {p.instagram ? (
+                            {linkSeguro(p.instagram) ? (
                               <a
-                                href={p.instagram}
+                                href={linkSeguro(p.instagram)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-pink-500 transition-colors"

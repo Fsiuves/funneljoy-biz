@@ -35,6 +35,7 @@ import { aplicarMarcaDaEmpresa } from '@/lib/marca';
 import { definirEmpresaDaAba, empresaDaAba } from '@/lib/empresaDaAba';
 import { useConfig, useMenu, useVocabulario } from '@/hooks/useEmpresa';
 import { AvisoWhatsapp } from '@/components/AvisoWhatsapp';
+import { linkSeguro } from '@/lib/link';
 
 const menuItems = [
   // Atendimento e Agenda juntos no alto: só aparecem para quem tem o módulo.
@@ -68,7 +69,7 @@ export function Sidebar() {
   const [trocarSenha, setTrocarSenha] = useState(false);
   const v = useVocabulario();
   const menu = useMenu();
-  const guia = useConfig().config.guia_url;
+  const guia = linkSeguro(useConfig().config.guia_url);
   const itens = menuItems
     .filter((item) => (!item.modulo || modulos?.has(item.modulo)) && menu.permitido(item.path))
     .sort((a, b) => Number(b.path === menu.primeiro) - Number(a.path === menu.primeiro));

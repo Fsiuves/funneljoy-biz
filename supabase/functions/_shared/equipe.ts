@@ -2,7 +2,7 @@
 //
 //   • Direção: qualquer pessoa da empresa, menos ela mesma.
 //   • Gerente: só atendente; se a gerente tem unidade, só atendente dela.
-//   • Ninguém mexe em quem também tem papel em outra empresa. Quando alguém da
+//   • Ninguém mexe em quem também tem papel em outra empresa ou entra no Radar. Quando alguém da
 //     Dom está dentro da clínica, o perfil dele aparece na equipe dela; sem esta
 //     trava, a direção da clínica tomaria a conta e entraria nas outras empresas.
 //
@@ -36,6 +36,14 @@ export async function podeGerirAcesso(crm: Cliente, quemPede: string, alvo: stri
   const { data: outras } = await crm
     .from("user_roles").select("tenant_id").eq("user_id", alvo).neq("tenant_id", empresa);
   if (outras && outras.length > 0) return negar("pessoa_de_outra_empresa");
+
+  // Quem também entra no Radar (public.user_companies) fica de fora pelo mesmo
+  // motivo: trocar a senha ou desativar daqui daria o Radar dessa pessoa a quem
+  // está no CRM (auditoria de 21/11/2026).
+  const { data: noRadar, error: erroRadar } = await crm.schema("public")
+    .from("user_companies").select("user_id").eq("user_id", alvo).limit(1);
+  if (erroRadar) return negar("falha", 500);
+  if (noRadar && noRadar.length > 0) return negar("pessoa_de_outra_empresa");
 
   if (meuPapel.role === "manager") {
     const { data: papelDele } = await crm

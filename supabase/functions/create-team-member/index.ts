@@ -75,29 +75,14 @@ Deno.serve(async (req) => {
     });
 
     if (createError) {
-      // If user already exists, find them and link to this tenant
-      if (createError.message.includes("already been registered")) {
-        const { data: listData, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-        if (listError) {
-          return new Response(JSON.stringify({ error: "Erro ao buscar usuário existente" }), {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        const existingUser = listData.users.find((u: any) => u.email === email.toLowerCase().trim());
-        if (!existingUser) {
-          return new Response(JSON.stringify({ error: "Usuário não encontrado" }), {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        userId = existingUser.id;
-      } else {
-        return new Response(JSON.stringify({ error: createError.message }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      // Conta que já existe não é puxada para a empresa de quem cadastra
+      // (auditoria de 21/11/2026): era o caminho para tomar a conta de outra
+      // pessoa e trocar a senha dela. Quem já tem conta entra pelo suporte.
+      const codigo = createError.message.includes("already been registered") ? "conta_existente" : createError.message;
+      return new Response(JSON.stringify({ error: codigo }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     } else if (!newUser.user) {
       return new Response(JSON.stringify({ error: "failed_to_create_user" }), {
         status: 500,
@@ -106,6 +91,10 @@ Deno.serve(async (req) => {
     } else {
       userId = newUser.user.id;
     }
+
+    // Cadastro que não terminou não deixa conta solta: o e-mail ficaria preso,
+    // porque conta que já existe não entra mais pela equipe.
+    const desfazerConta = () => supabaseAdmin.auth.admin.deleteUser(userId).catch(() => null);
 
     // Step 3: Complete setup (profile + role) via RPC with caller's context
     const { data: setupResult, error: setupError } = await supabaseCaller.rpc("complete_team_member_setup", {
@@ -117,6 +106,7 @@ Deno.serve(async (req) => {
     });
 
     if (setupError) {
+      await desfazerConta();
       return new Response(JSON.stringify({ error: setupError.message }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -125,6 +115,7 @@ Deno.serve(async (req) => {
 
     const setup = setupResult as { success: boolean; error?: string };
     if (!setup.success) {
+      await desfazerConta();
       return new Response(JSON.stringify({ error: setup.error || "setup_failed" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
