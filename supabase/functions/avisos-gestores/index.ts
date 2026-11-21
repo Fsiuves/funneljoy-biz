@@ -88,17 +88,31 @@ Deno.serve(async (req) => {
     if (acao === "previa") {
       const { data, error } = await crm.rpc("avisos_pendentes", { _so_tenant: tenant });
       if (error) throw new Error(error.message);
-      return resposta({ ok: true, avisos: (data ?? []).map((a: any) => ({ tipo: a.tipo, unidade: a.unidade, texto: a.texto })) });
+      // Gerente de uma unidade vê só a unidade dela (auditoria de 21/11/2026).
+      // O resumo do dia junta as unidades: fica para quem vê a empresa toda.
+      const { data: perfil } = await crm.from("profiles").select("unidade").eq("id", user.id).maybeSingle();
+      const minha: string | null = papel === "manager" ? perfil?.unidade ?? null : null;
+      const daUnidade = (data ?? []).filter((a: any) => !minha || a.unidade === minha);
+      return resposta({ ok: true, avisos: daUnidade.map((a: any) => ({ tipo: a.tipo, unidade: a.unidade, texto: a.texto })) });
     }
     if (acao === "status") {
       const r = await fetch(evolution("instance/connectionState"), { headers: { apikey: Deno.env.get("EVOLUTION_APIKEY")! } });
       return resposta({ ok: r.ok, status: r.status, estado: (await r.json().catch(() => ({})))?.instance?.state ?? null });
     }
     if (acao === "teste") {
+      // O teste não vira disparo pelo número da Dom (auditoria de 21/11/2026):
+      // um a cada 5 minutos por empresa, para no máximo 10 números (o mesmo
+      // limite de crm.salvar_avisos).
+      const { count: recentes } = await crm.from("avisos_enviados")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenant).eq("tipo", "teste")
+        .gt("enviado_em", new Date(Date.now() - 5 * 60_000).toISOString());
+      if ((recentes ?? 0) > 0) return resposta({ ok: false, error: "teste_recente" });
       const { data: cfg } = await crm.rpc("avisos_config_de", { _tenant: tenant });
       const { data: empresa } = await crm.from("tenants").select("name").eq("id", tenant).single();
       const destinatarios: Destinatario[] = cfg?.destinatarios ?? [];
       if (!destinatarios.length) return resposta({ ok: false, error: "sem_destinatarios" });
+      if (destinatarios.length > 10) return resposta({ ok: false, error: "destinatarios_demais" });
       const texto = `*${empresa?.name ?? "CRM"}*\nTeste dos avisos do CRM. Se esta mensagem chegou, os avisos vão chegar neste número.`;
       const envios = await enviarParaTodos(destinatarios, texto);
       await crm.from("avisos_enviados").insert({

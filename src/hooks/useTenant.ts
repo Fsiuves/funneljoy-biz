@@ -142,27 +142,34 @@ export function useTenant() {
       body: { email, name, password, role, unidade },
     });
 
+    const errorMessages: Record<string, string> = {
+      not_authenticated: 'Você precisa estar logado',
+      not_authorized: 'Você não tem permissão para convidar membros',
+      no_tenant: 'Empresa não encontrada',
+      invalid_email: 'Email inválido',
+      invalid_name: 'Nome deve ter pelo menos 2 caracteres',
+      invalid_role: 'Função inválida',
+      unidade_invalida: 'Unidade não encontrada nesta empresa',
+      email_em_outra_empresa: 'Este email já pertence a outra empresa',
+      email_already_exists: 'Este usuário ou email já está cadastrado nesta empresa',
+      usuario_de_outra_empresa: 'Esse usuário pertence a outra empresa',
+      so_atendente: 'A gerente cadastra só atendentes',
+      outra_unidade: 'Você só cadastra atendentes da sua unidade',
+      atendente_sem_unidade: 'Atendente precisa de uma unidade',
+      ja_cadastrado: 'Essa pessoa já está na equipe',
+      conta_existente: 'Este email já tem uma conta. Para colocar essa pessoa na equipe, fale com o suporte da DOM',
+      pessoa_de_outra_empresa: 'Essa pessoa também acessa outra empresa. O acesso dela é cuidado pelo suporte.',
+    };
+
     if (error) {
+      // Resposta com erro (400/403): o código vem no corpo, como em TeamSettingsModal.
+      const resposta = (error as { context?: Response }).context;
+      const corpo: { error?: string } | null = resposta ? await resposta.json().catch(() => null) : null;
+      if (corpo?.error) return { error: errorMessages[corpo.error] || corpo.error };
       return { error: error.message || 'Erro ao criar membro' };
     }
 
     if (data?.error) {
-      const errorMessages: Record<string, string> = {
-        not_authenticated: 'Você precisa estar logado',
-        not_authorized: 'Você não tem permissão para convidar membros',
-        no_tenant: 'Empresa não encontrada',
-        invalid_email: 'Email inválido',
-        invalid_name: 'Nome deve ter pelo menos 2 caracteres',
-        invalid_role: 'Função inválida',
-        unidade_invalida: 'Unidade não encontrada nesta empresa',
-        email_em_outra_empresa: 'Este email já pertence a outra empresa',
-        email_already_exists: 'Este usuário ou email já está cadastrado nesta empresa',
-        usuario_de_outra_empresa: 'Esse usuário pertence a outra empresa',
-        so_atendente: 'A gerente cadastra só atendentes',
-        outra_unidade: 'Você só cadastra atendentes da sua unidade',
-        atendente_sem_unidade: 'Atendente precisa de uma unidade',
-        ja_cadastrado: 'Essa pessoa já está na equipe',
-      };
       return { error: errorMessages[data.error] || data.error };
     }
 

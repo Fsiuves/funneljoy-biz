@@ -37,6 +37,8 @@ const ERROS: Record<string, string> = {
   espera_invalida: 'A espera precisa ficar entre 5 e 240 minutos',
   not_authorized: 'Só a direção e a gerente mudam os avisos',
   sem_destinatarios: 'Cadastre e salve pelo menos um número antes do teste',
+  destinatarios_demais: 'Cadastre no máximo 10 números',
+  teste_recente: 'Um teste acabou de ser enviado. Espere 5 minutos para mandar outro',
 };
 
 const telefoneLegivel = (t: string) => {
