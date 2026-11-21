@@ -157,7 +157,7 @@ function MidiaSobDemanda({ m, deMim, aoGuardar }: {
         <button
           type="button"
           onClick={guardar}
-          className={`block text-[11px] underline mb-1 ${deMim ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}
+          className="block text-[11px] underline mb-1 text-muted-foreground"
         >
           Salvar como resposta pronta
         </button>
@@ -172,7 +172,7 @@ function MidiaSobDemanda({ m, deMim, aoGuardar }: {
       disabled={!baixavel || estado === 'carregando'}
       onClick={abrir}
       className={`flex items-center gap-2 text-sm mb-1 rounded-lg px-2.5 py-1.5 ${
-        deMim ? 'bg-primary-foreground/15' : 'bg-muted'
+        deMim ? 'bg-black/5' : 'bg-muted'
       } ${baixavel ? 'hover:opacity-80' : 'cursor-default'}`}
     >
       {estado === 'carregando' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Icone className="w-4 h-4" />}
@@ -200,7 +200,8 @@ function Balao({ m, autor, aoGuardar }: {
       <div
         className={`max-w-[72%] rounded-2xl px-3.5 py-2 text-sm shadow-sm ${m.pendente ? 'opacity-70 ' : ''}${
           deMim
-            ? 'bg-primary text-primary-foreground rounded-br-md'
+            // Verde claro do WhatsApp (pedido de 21/11/2026): o bloco preto pesava nas mensagens longas.
+            ? 'bg-[#d9fdd3] text-foreground border border-[#c3e8bc] rounded-br-md'
             : 'bg-card text-foreground border border-border rounded-bl-md'
         }`}
       >
@@ -213,7 +214,7 @@ function Balao({ m, autor, aoGuardar }: {
             {texto}
           </p>
         )}
-        <p className={`text-[11px] mt-1 text-right ${deMim ? 'text-primary-foreground/75' : 'text-muted-foreground'}`}>
+        <p className="text-[11px] mt-1 text-right text-muted-foreground">
           {autor && <>{autor} · </>}
           {m.pendente ? 'enviando…' : format(new Date(momentoMensagem(m)), 'HH:mm')}
         </p>

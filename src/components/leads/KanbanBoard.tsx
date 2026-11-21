@@ -50,6 +50,8 @@ export function KanbanBoard({ leads, onLeadClick, onStageChange }: KanbanBoardPr
 
   const getTotalValue = (stage: LeadStage) => {
     const total = getLeadsByStage(stage).reduce((sum, lead) => sum + (lead.value || 0), 0);
+    // Coluna sem valor não mostra "R$ 0" (pedido de 21/11/2026).
+    if (total === 0) return null;
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
