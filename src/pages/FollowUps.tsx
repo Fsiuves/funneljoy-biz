@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { iniciais } from '@/components/atendimento/PainelConversa';
 import { useNavigate } from 'react-router-dom';
 import { conversaDoPaciente, useModulosAtivos } from '@/hooks/useAtendimento';
 import { useConfig, useVocabulario } from '@/hooks/useEmpresa';
@@ -185,7 +186,7 @@ export default function FollowUps() {
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
             <span className="text-sm font-semibold text-primary">
-              {lead.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+              {iniciais(lead.name)}
             </span>
           </div>
           <div>
@@ -271,15 +272,20 @@ export default function FollowUps() {
     </div>
   );
 
+  // Seção vazia fica numa linha só (pedido de 21/11/2026): três caixas de
+  // "Nenhum follow-up agendado" ocupavam a tela.
   const Section = ({ title, leads: sectionLeads, isOverdue = false }: { title: string, leads: Lead[], isOverdue?: boolean }) => (
-    <div className="mb-8">
-      <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+    <div className={sectionLeads.length > 0 ? 'mb-8' : 'mb-5'}>
+      <h2 className={`text-lg font-semibold text-foreground flex items-center gap-2 ${sectionLeads.length > 0 ? 'mb-4' : ''}`}>
         {title}
         <span className="text-sm font-normal px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
           {sectionLeads.length}
         </span>
+        {sectionLeads.length === 0 && (
+          <span className="text-sm font-normal text-muted-foreground">nada agendado</span>
+        )}
       </h2>
-      {sectionLeads.length > 0 ? (
+      {sectionLeads.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {sectionLeads.map((lead, index) => (
             <div key={lead.id} className="animate-slide-up" style={{ animationDelay: `${Math.min(index, 10) * 0.1}s` }}>
@@ -287,10 +293,6 @@ export default function FollowUps() {
             </div>
           ))}
         </div>
-      ) : (
-        <p className="text-muted-foreground text-center py-8 bg-muted/30 rounded-xl">
-          Nenhum follow-up agendado
-        </p>
       )}
     </div>
   );
@@ -428,7 +430,7 @@ export default function FollowUps() {
                             <div className="flex items-center gap-3">
                               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                                 <span className="text-xs font-semibold text-primary">
-                                  {lead.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                                  {iniciais(lead.name)}
                                 </span>
                               </div>
                               <div>

@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { formatarTelefone, iniciais } from '@/components/atendimento/PainelConversa';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSearchParams } from 'react-router-dom';
 import { ErroAoCarregar } from '@/components/ErroAoCarregar';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -9,19 +11,23 @@ import { LeadDetailsModal } from '@/components/leads/LeadDetailsModal';
 import { useLeads, useCreateLead, useDeleteLead, useUpdateLead } from '@/hooks/useLeads';
 import { Lead, LeadSource, LEAD_SOURCES } from '@/types/crm';
 import { useConfig, useEtapas, useMeuPapel, useVocabulario } from '@/hooks/useEmpresa';
-import { Phone, Mail, Building2, MoreHorizontal, Eye, Edit, Trash2, Loader2, Search, ArrowRightLeft } from 'lucide-react';
+import { Phone, Mail, Building2, MoreHorizontal, Eye, Edit, Trash2, Loader2, ArrowRightLeft } from 'lucide-react';
 import { MudarEtapaDialog } from '@/components/leads/MudarEtapaDialog';
 import { chaveNome } from '@/lib/busca';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export default function Leads() {
-  const { rotulo, cor, personalizadas } = useEtapas();
+  const { etapas, rotulo, cor, personalizadas } = useEtapas();
   const [mudandoEtapa, setMudandoEtapa] = useState<Lead | null>(null);
   const v = useVocabulario();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  // Filtros de unidade e etapa (pedido de 21/11/2026).
+  const TODAS = '__todas__';
+  const [unidadeFiltro, setUnidadeFiltro] = useState(TODAS);
+  const [etapaFiltro, setEtapaFiltro] = useState(TODAS);
   // Com 1.273 pacientes a tabela inteira de uma vez pesava e piscava por um minuto
   // (cada linha entrava com atraso pela posição). Mostra 100 por vez; a busca procura em todos.
   const [limite, setLimite] = useState(100);
@@ -43,7 +49,14 @@ export default function Leads() {
   const deleteLead = useDeleteLead();
   const updateLead = useUpdateLead();
 
+  const unidadesDosLeads = Array.from(new Set(leads.map((l) => l.unidade).filter((u): u is string => !!u))).sort();
+  const ordemDaEtapa = new Map(etapas.map((e, i) => [e.value, i]));
+  const etapasDosLeads = Array.from(new Set(leads.map((l) => l.stage)))
+    .sort((a, b) => (ordemDaEtapa.get(a) ?? 999) - (ordemDaEtapa.get(b) ?? 999));
+
   const filteredLeads = leads.filter((lead) => {
+    if (unidadeFiltro !== TODAS && lead.unidade !== unidadeFiltro) return false;
+    if (etapaFiltro !== TODAS && lead.stage !== etapaFiltro) return false;
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
     const chave = chaveNome(searchTerm);
@@ -57,6 +70,15 @@ export default function Leads() {
       (phoneDigits.length >= 3 && lead.cpf?.includes(phoneDigits))
     );
   });
+
+  const mudarBusca = (valor: string) => {
+    setSearchTerm(valor);
+    setLimite(100);
+    if (searchParams.get('q')) {
+      searchParams.delete('q');
+      setSearchParams(searchParams, { replace: true });
+    }
+  };
 
   const handleAddLead = (leadData: {
     name: string;
@@ -128,32 +150,39 @@ export default function Leads() {
         subtitle="Gerencie todos os seus contatos"
         onAddClick={() => setIsModalOpen(true)}
         addButtonLabel={v.novo}
+        busca={{ valor: searchTerm, mudar: mudarBusca }}
       />
 
-      {/* Search */}
-      <div className="mb-6 relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <input
-          type="text"
-          placeholder={comEmpresa ? 'Buscar por nome, telefone, empresa...' : comCpf ? 'Buscar por nome, telefone ou CPF...' : 'Buscar por nome ou telefone...'}
-          value={searchTerm}
-          onChange={(e) => {
-            setSearchTerm(e.target.value);
-            setLimite(100);
-            if (searchParams.get('q')) {
-              searchParams.delete('q');
-              setSearchParams(searchParams, { replace: true });
-            }
-          }}
-          className="input-field pl-10 w-full"
-        />
+      {/* Uma busca só, a do topo (pedido de 21/11/2026), e os filtros de unidade e etapa. */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {unidadesDosLeads.length > 1 && (
+          <Select value={unidadeFiltro} onValueChange={(u) => { setUnidadeFiltro(u); setLimite(100); }}>
+            <SelectTrigger className="h-9 w-44 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODAS}>Todas as unidades</SelectItem>
+              {unidadesDosLeads.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
+        <Select value={etapaFiltro} onValueChange={(e) => { setEtapaFiltro(e); setLimite(100); }}>
+          <SelectTrigger className="h-9 w-52 text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={TODAS}>Todas as etapas</SelectItem>
+            {etapasDosLeads.map((s) => <SelectItem key={s} value={s}>{rotulo(s)}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <span className="ml-1 text-sm text-muted-foreground">
+          {filteredLeads.length.toLocaleString('pt-BR')} {filteredLeads.length === 1 ? v.lead : v.leads}
+        </span>
       </div>
 
       {/* Table */}
       <div className="bg-card rounded-xl shadow-card overflow-hidden animate-fade-in">
         {filteredLeads.length === 0 ? (
           <div className="p-12 text-center">
-            <p className="text-muted-foreground">{v.nenhum} cadastrado ainda.</p>
+            <p className="text-muted-foreground">
+              {leads.length > 0 ? `${v.nenhum} com esses filtros.` : `${v.nenhum} cadastrado ainda.`}
+            </p>
             <button
               onClick={() => setIsModalOpen(true)}
               className="mt-4 text-primary hover:underline"
@@ -166,14 +195,14 @@ export default function Leads() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">{v.Lead}</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Contato</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Origem</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Etapa</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Valor</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Responsável</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-foreground">Data</th>
-                  <th className="text-right px-6 py-4 text-sm font-semibold text-foreground">Ações</th>
+                  <th className="text-left px-3 py-3 text-sm font-semibold text-foreground">{v.Lead}</th>
+                  <th className="text-left px-3 py-3 text-sm font-semibold text-foreground">Contato</th>
+                  <th className="text-left px-3 py-3 text-sm font-semibold text-foreground">Origem</th>
+                  <th className="text-left px-3 py-3 text-sm font-semibold text-foreground">Etapa</th>
+                  <th className="text-left px-3 py-3 text-sm font-semibold text-foreground">Valor</th>
+                  <th className="text-left px-3 py-3 text-sm font-semibold text-foreground">Responsável</th>
+                  <th className="text-left px-3 py-3 text-sm font-semibold text-foreground">Data</th>
+                  <th className="text-right px-3 py-3 text-sm font-semibold text-foreground">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -183,19 +212,18 @@ export default function Leads() {
                     className="border-b border-border hover:bg-muted/30 transition-colors animate-slide-up"
                     style={{ animationDelay: `${Math.min(index, 10) * 0.05}s` }}
                   >
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="text-sm font-semibold text-primary">
-                            {lead.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                          </span>
+                    <td className="px-3 py-3">
+                      {/* Nome longo não estica a tabela: corta com reticências (pedido de 21/11/2026). */}
+                      <div className="flex items-center gap-3 max-w-[260px]">
+                        <div className="w-8 h-8 shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
+                          <span className="text-xs font-semibold text-primary">{iniciais(lead.name)}</span>
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <p className="font-medium text-foreground truncate">{lead.name}</p>
-                            {(lead as any).unidade && (
+                            {lead.unidade && (
                               <span className="shrink-0 text-[11px] leading-none px-1.5 py-1 rounded border bg-muted text-muted-foreground">
-                                {(lead as any).unidade}
+                                {lead.unidade}
                               </span>
                             )}
                           </div>
@@ -208,11 +236,11 @@ export default function Leads() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-3">
                       <div className="space-y-1">
-                        <p className="text-sm text-foreground flex items-center gap-2">
+                        <p className="text-sm text-foreground flex items-center gap-2 whitespace-nowrap">
                           <Phone className="w-3.5 h-3.5 text-muted-foreground" />
-                          {lead.phone}
+                          {formatarTelefone(lead.phone)}
                         </p>
                         {lead.email && (
                         <p className="text-sm text-foreground flex items-center gap-2">
@@ -222,31 +250,31 @@ export default function Leads() {
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-3">
                       <span className="text-sm text-foreground">{getSourceLabel(lead.source)}</span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-3">
                       <span
-                        className="inline-block px-3 py-1 text-xs font-medium rounded-full text-white"
+                        className="inline-block px-3 py-1 text-xs font-medium rounded-full text-white whitespace-nowrap"
                         style={{ backgroundColor: cor(lead.stage) }}
                       >
                         {rotulo(lead.stage)}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-3">
                       <span className="text-sm font-medium text-foreground">{formatCurrency(lead.value)}</span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-3">
                       <span className="text-sm text-foreground">
                         {lead.assignedToName || lead.createdByName || '-'}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm text-muted-foreground">
+                    <td className="px-3 py-3">
+                      <span className="text-sm text-muted-foreground whitespace-nowrap">
                         {format(lead.createdAt, "dd/MM/yyyy", { locale: ptBR })}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-3 py-3 text-right">
                       <div className="relative">
                         <button 
                           onClick={() => setOpenMenuId(openMenuId === lead.id ? null : lead.id)}

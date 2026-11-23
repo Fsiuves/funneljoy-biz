@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { iniciais } from '@/components/atendimento/PainelConversa';
 import { useVocabulario } from '@/hooks/useEmpresa';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -129,7 +130,7 @@ export function AddActivityModal({
             <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                 <span className="text-sm font-semibold text-primary">
-                  {preSelectedLead.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                  {iniciais(preSelectedLead.name)}
                 </span>
               </div>
               <div>

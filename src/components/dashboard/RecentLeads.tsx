@@ -1,4 +1,5 @@
 import { Lead, LEAD_SOURCES } from '@/types/crm';
+import { iniciais } from '@/components/atendimento/PainelConversa';
 import { useEtapas, useVocabulario } from '@/hooks/useEmpresa';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -33,7 +34,7 @@ export function RecentLeads({ leads }: RecentLeadsProps) {
           >
             <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
               <span className="text-sm font-semibold text-primary">
-                {lead.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                {iniciais(lead.name)}
               </span>
             </div>
             <div className="flex-1 min-w-0">

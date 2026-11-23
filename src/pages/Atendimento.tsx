@@ -21,7 +21,8 @@ import {
   useConversasAguardando, useConversasFixadas,
   type Conversa, type Rascunho,
 } from '@/hooks/useAtendimento';
-import { CornerUpLeft, Loader2, Megaphone, MessageCircle, Pin, Search, Smartphone } from 'lucide-react';
+import { CornerUpLeft, Loader2, Megaphone, MessageCircle, Pin, Search, SlidersHorizontal, Smartphone, X } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 type Fila = 'minhas' | 'sem' | 'todas';
 type Situacao = 'abertas' | 'aguardando' | 'resolvidas';
@@ -37,6 +38,29 @@ function tempoDeEspera(desde: string): string {
   return `${Math.floor(min / (24 * 60))} d`;
 }
 
+/**
+ * Cor do relógio de espera (pedido de 21/11/2026): verde até 5 min, o prazo do
+ * Painel da recepção; amarelo até 30 min, quando sai o aviso de espera; vermelho depois.
+ */
+function corDaEspera(desde: string): string {
+  const min = (Date.now() - Date.parse(desde)) / 60_000;
+  if (min <= 5) return 'bg-emerald-100 text-emerald-800';
+  if (min <= 30) return 'bg-amber-100 text-amber-800';
+  return 'bg-red-100 text-red-700';
+}
+
+/** Filtro ligado, à vista embaixo da busca, com o x para tirar. */
+function FiltroLigado({ children, tirar }: { children: React.ReactNode; tirar: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border bg-muted/60 pl-2.5 pr-1 py-0.5 text-xs text-foreground">
+      {children}
+      <button type="button" onClick={tirar} className="rounded-full p-0.5 hover:bg-muted" aria-label="Tirar filtro">
+        <X className="w-3 h-3" />
+      </button>
+    </span>
+  );
+}
+
 interface ItemConversaProps {
   c: Conversa;
   ativa: boolean;
@@ -46,8 +70,10 @@ interface ItemConversaProps {
   anuncio?: string;
   /** Texto deixado escrito por quem está logado, fora da conversa aberta. */
   rascunho?: Rascunho;
-  /** No filtro "Aguardando resposta": desde quando o paciente espera, no lugar da hora. */
+  /** Paciente esperando resposta: desde quando, no lugar da hora (relógio colorido). */
   esperando?: string | null;
+  /** Muda a cada minuto nas conversas que esperam, para o relógio andar sem redesenhar as outras. */
+  minuto?: number;
   /** Etiquetas da conversa; "celular" quando vieram do WhatsApp do celular. */
   etiquetas?: { e: Etiqueta; celular: boolean }[];
   aoAbrir: (id: string) => void;
@@ -62,13 +88,13 @@ const ItemConversa = memo(function ItemConversa({ c, ativa, responsavel, mostrar
   return (
     <button
       onClick={() => aoAbrir(c.id)}
-      className={`w-full text-left px-4 py-3 border-b border-border/60 transition-colors ${
+      className={`w-full text-left px-4 py-2 border-b border-border/60 transition-colors ${
         ativa ? 'bg-primary/5 shadow-[inset_3px_0_0_hsl(var(--primary))]' : 'hover:bg-muted/50'
       }`}
     >
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
-          <span className="text-sm font-semibold text-primary">{iniciais(nome)}</span>
+        <div className="w-9 h-9 shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
+          <span className="text-xs font-semibold text-primary">{iniciais(nome)}</span>
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
@@ -77,7 +103,10 @@ const ItemConversa = memo(function ItemConversa({ c, ativa, responsavel, mostrar
               <span className="truncate">{nome}</span>
             </p>
             {esperando ? (
-              <span className="text-xs shrink-0 font-semibold text-amber-700" title={`Esperando resposta desde ${new Date(esperando).toLocaleString('pt-BR')}`}>
+              <span
+                className={`text-[11px] shrink-0 font-semibold px-1.5 py-0.5 rounded-full ${corDaEspera(esperando)}`}
+                title={`Esperando resposta desde ${new Date(esperando).toLocaleString('pt-BR')}`}
+              >
                 há {tempoDeEspera(esperando)}
               </span>
             ) : (
@@ -105,31 +134,32 @@ const ItemConversa = memo(function ItemConversa({ c, ativa, responsavel, mostrar
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 mt-1.5">
+          {/* Selos numa linha só (pedido de 21/11/2026): o que não cabe fica escondido no fim. */}
+          <div className="flex items-center gap-1.5 mt-0.5 overflow-hidden whitespace-nowrap [&_span]:leading-4">
             {c.interna && (
-              <span className="text-[11px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
+              <span className="shrink-0 text-[11px] px-1.5 rounded bg-primary/10 text-primary font-medium">
                 {ehGrupo(c.phone) ? 'Grupo' : 'Equipe'}
               </span>
             )}
             {mostrarUnidade && (
-              <span className="text-[11px] px-1.5 py-0.5 rounded border bg-muted text-muted-foreground">
+              <span className="shrink-0 text-[11px] px-1.5 rounded border bg-muted text-muted-foreground">
                 {c.unidade}
               </span>
             )}
             {anuncio && (
-              <span title={`Veio do anúncio: ${anuncio}`} className="shrink-0 inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-medium">
+              <span title={`Veio do anúncio: ${anuncio}`} className="shrink-0 inline-flex items-center gap-1 text-[11px] px-1.5 rounded bg-amber-100 text-amber-900 font-medium">
                 <Megaphone className="w-3 h-3" />
                 Anúncio
               </span>
             )}
-            <span className="text-[11px] text-muted-foreground truncate">{responsavel}</span>
+            {etiquetas?.slice(0, 2).map(({ e, celular }) => (
+              <span key={e.id} className="shrink-0"><ChipEtiqueta e={e} celular={celular} /></span>
+            ))}
+            {etiquetas && etiquetas.length > 2 && (
+              <span className="shrink-0 text-[11px] text-muted-foreground">+{etiquetas.length - 2}</span>
+            )}
+            <span className="text-[11px] text-muted-foreground truncate min-w-0">{responsavel}</span>
           </div>
-          {etiquetas && etiquetas.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {etiquetas.slice(0, 3).map(({ e, celular }) => <ChipEtiqueta key={e.id} e={e} celular={celular} />)}
-              {etiquetas.length > 3 && <span className="text-[11px] text-muted-foreground">+{etiquetas.length - 3}</span>}
-            </div>
-          )}
         </div>
       </div>
     </button>
@@ -171,6 +201,12 @@ export default function Atendimento() {
   // ?conversa= abre direto a conversa (vem do Follow-up e dos Planos).
   const [abertaId, setAbertaId] = useState<string | null>(() => parametros.get('conversa'));
   const [conectar, setConectar] = useState(false);
+  // O relógio de espera da lista anda sozinho: a cada minuto redesenha só quem espera.
+  const [minuto, setMinuto] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setMinuto((m) => m + 1), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   // Conversas antigas, fora das 500 da lista: as achadas na busca e a do ?conversa=.
   const { data: achadas = [], isFetching: buscando } = useBuscaConversas(busca, liberado);
@@ -365,6 +401,14 @@ export default function Atendimento() {
     { id: 'sem', rotulo: 'Sem responsável', n: contagem.sem },
     { id: 'todas', rotulo: 'Todas', n: contagem.todas },
   ];
+  const situacoes: { id: Situacao; rotulo: string; n: number; dica?: string }[] = [
+    // Abertas sem número: a lista carrega aos poucos e a conta crescia ao rolar
+    // (588 no começo, 3.188 de verdade em 21/11/2026). Aguardando vem inteira do servidor.
+    { id: 'abertas', rotulo: 'Abertas', n: 0 },
+    { id: 'aguardando', rotulo: 'Aguardando', n: contagem.aguardando, dica: 'Pacientes esperando resposta, de quem espera há mais tempo para quem espera há menos' },
+    { id: 'resolvidas', rotulo: 'Resolvidas', n: 0 },
+  ];
+  const filtrosLigados = (fila !== 'todas' ? 1 : 0) + (unidade !== TODAS ? 1 : 0) + (etiquetaFiltro !== TODAS ? 1 : 0);
 
   return (
     <MainLayout fullBleed>
@@ -380,17 +424,23 @@ export default function Atendimento() {
               </Button>
             </div>
 
+            {/* Uma linha só de abas (pedido de 21/11/2026). Responsável, unidade e
+                etiqueta ficam em Filtros, e o que está ligado aparece embaixo da busca. */}
             <div className="flex rounded-lg bg-muted p-1">
-              {abas.map((a) => (
+              {situacoes.map((s) => (
                 <button
-                  key={a.id}
-                  onClick={() => setFila(a.id)}
+                  key={s.id}
+                  type="button"
+                  onClick={() => setSituacao(s.id)}
+                  title={s.dica}
                   className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                    fila === a.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                    situacao === s.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  {a.rotulo}
-                  {a.n > 0 && <span className="ml-1 text-muted-foreground">{a.n}</span>}
+                  {s.rotulo}
+                  {s.n > 0 && (
+                    <span className={`ml-1 ${s.id === 'aguardando' ? 'text-amber-700 font-semibold' : 'text-muted-foreground'}`}>{s.n}</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -405,60 +455,88 @@ export default function Atendimento() {
                   className="input-field pl-9 w-full h-9 text-sm"
                 />
               </div>
-              {escolheUnidade && (
-                <Select value={unidade} onValueChange={setUnidade}>
-                  <SelectTrigger className="h-9 w-32 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={TODAS}>Todas</SelectItem>
-                    {unidades.map((u) => (
-                      <SelectItem key={u} value={u}>{u}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="outline" size="sm" className="h-9 shrink-0 gap-1.5">
+                    <SlidersHorizontal className="w-4 h-4" />
+                    Filtros
+                    {filtrosLigados > 0 && (
+                      <span className="min-w-4 h-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] leading-4">{filtrosLigados}</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-72 space-y-4">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1.5">Responsável</p>
+                    <div className="flex rounded-lg bg-muted p-1">
+                      {abas.map((a) => (
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={() => setFila(a.id)}
+                          className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                            fila === a.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          {a.rotulo}
+                          {a.n > 0 && <span className="ml-1 text-muted-foreground">{a.n}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {escolheUnidade && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">Unidade</p>
+                      <Select value={unidade} onValueChange={setUnidade}>
+                        <SelectTrigger className="h-9 text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={TODAS}>Todas as unidades</SelectItem>
+                          {unidades.map((u) => (
+                            <SelectItem key={u} value={u}>{u}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {etiquetas.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">Etiqueta</p>
+                      <Select value={etiquetaFiltro} onValueChange={setEtiquetaFiltro}>
+                        <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={TODAS}>Todas as etiquetas</SelectItem>
+                          {etiquetas.filter((e) => unidade === TODAS || !e.unidade || e.unidade === unidade).map((e) => (
+                            <SelectItem key={e.id} value={e.id}>
+                              <span className="inline-flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: e.cor }} />
+                                {e.nome}{e.origem === 'whatsapp' ? ' (celular)' : ''}{unidades.length > 1 && e.unidade ? ` · ${e.unidade}` : ''}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
             </div>
 
-            {etiquetas.length > 0 && (
-              <Select value={etiquetaFiltro} onValueChange={setEtiquetaFiltro}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={TODAS}>Todas as etiquetas</SelectItem>
-                  {etiquetas.filter((e) => unidade === TODAS || !e.unidade || e.unidade === unidade).map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      <span className="inline-flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: e.cor }} />
-                        {e.nome}{e.origem === 'whatsapp' ? ' (celular)' : ''}{unidades.length > 1 && e.unidade ? ` · ${e.unidade}` : ''}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {filtrosLigados > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {fila !== 'todas' && (
+                  <FiltroLigado tirar={() => setFila('todas')}>{fila === 'minhas' ? 'Minhas' : 'Sem responsável'}</FiltroLigado>
+                )}
+                {unidade !== TODAS && <FiltroLigado tirar={() => setUnidade(TODAS)}>{unidade}</FiltroLigado>}
+                {etiquetaFiltro !== TODAS && (
+                  <FiltroLigado tirar={() => setEtiquetaFiltro(TODAS)}>
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: etiquetasPorId.get(etiquetaFiltro)?.cor }} />
+                    {etiquetasPorId.get(etiquetaFiltro)?.nome ?? 'Etiqueta'}
+                  </FiltroLigado>
+                )}
+              </div>
             )}
-
-            <div className="flex gap-4 text-xs">
-              <button
-                onClick={() => setSituacao('abertas')}
-                className={situacao === 'abertas' ? 'font-semibold text-foreground' : 'text-muted-foreground'}
-              >
-                Abertas
-              </button>
-              <button
-                onClick={() => setSituacao('aguardando')}
-                className={situacao === 'aguardando' ? 'font-semibold text-foreground' : 'text-muted-foreground'}
-                title="Pacientes esperando resposta, de quem espera há mais tempo para quem espera há menos"
-              >
-                Aguardando resposta
-                {contagem.aguardando > 0 && <span className="ml-1 text-amber-700 font-semibold">{contagem.aguardando}</span>}
-              </button>
-              <button
-                onClick={() => setSituacao('resolvidas')}
-                className={situacao === 'resolvidas' ? 'font-semibold text-foreground' : 'text-muted-foreground'}
-              >
-                Resolvidas
-              </button>
-            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto">
@@ -491,7 +569,13 @@ export default function Atendimento() {
               </div>
             )}
 
-            {!isLoading && conversas.length > 0 && lista.length === 0 && (
+            {/* Enquanto chegam as conversas antigas ou a busca, ainda não é "nada nesta fila". */}
+            {!isLoading && lista.length === 0 && buscando && busca.trim() && (
+              <div className="flex justify-center py-10">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            {!isLoading && conversas.length > 0 && lista.length === 0 && !antigas.isFetching && !buscando && (
               numeroNovo ? (
                 <div className="px-6 py-10 text-center">
                   <p className="text-sm text-muted-foreground">Nenhuma conversa com esse número.</p>
@@ -519,7 +603,8 @@ export default function Atendimento() {
                 mostrarUnidade={unidades.length > 1}
                 anuncio={(() => { const o = origemDaConversa(origens, c); return o ? descreverOrigem(o) : undefined; })()}
                 rascunho={comRascunho(c) ? rascunhos[c.id] : undefined}
-                esperando={situacao === 'aguardando' && !busca.trim() ? c.aguardando_desde : undefined}
+                esperando={aguardando(c) ? c.aguardando_desde : undefined}
+                minuto={aguardando(c) ? minuto : 0}
                 etiquetas={etiquetasDaConversa.get(c.id)}
                 aoAbrir={setAbertaId}
               />
