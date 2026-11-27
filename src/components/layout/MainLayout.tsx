@@ -1,5 +1,6 @@
 import { ReactNode, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
+import { BuscaRapida } from './BuscaRapida';
 import { TrocarSenhaDialog } from '@/components/auth/TrocarSenhaDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { avisarPresenca } from '@/lib/presenca';
@@ -30,6 +31,7 @@ export function MainLayout({ children, fullBleed = false }: MainLayoutProps) {
         {children}
       </main>
       <TrocarSenhaDialog open={senhaProvisoria} obrigatoria />
+      <BuscaRapida />
     </div>
   );
 }

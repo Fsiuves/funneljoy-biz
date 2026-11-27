@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/select';
 import { useAuth } from '@/hooks/useAuth';
 import { avisarConversaAberta } from '@/lib/presenca';
+import { campoDeTexto, janelaAberta } from '@/lib/atalhos';
 import { chaveNome } from '@/lib/busca';
 import { ChipEtiqueta } from '@/components/atendimento/Etiquetas';
 import { useEtiquetas, useMarcacoes, type Etiqueta } from '@/hooks/useEtiquetas';
@@ -87,6 +88,7 @@ const ItemConversa = memo(function ItemConversa({ c, ativa, responsavel, mostrar
   const nome = c.contact_name || (ehGrupo(c.phone) ? 'Grupo do WhatsApp' : formatarTelefone(c.phone));
   return (
     <button
+      data-conversa={c.id}
       onClick={() => aoAbrir(c.id)}
       className={`w-full text-left px-4 py-2 border-b border-border/60 transition-colors ${
         ativa ? 'bg-primary/5 shadow-[inset_3px_0_0_hsl(var(--primary))]' : 'hover:bg-muted/50'
@@ -197,9 +199,17 @@ export default function Atendimento() {
   const resolvidas = situacao === 'resolvidas';
   const [unidade, setUnidade] = useState(TODAS);
   const [busca, setBusca] = useState('');
-  const [parametros] = useSearchParams();
+  const [parametros, setParametros] = useSearchParams();
   // ?conversa= abre direto a conversa (vem do Follow-up e dos Planos).
   const [abertaId, setAbertaId] = useState<string | null>(() => parametros.get('conversa'));
+  // Também com o Atendimento já aberto (Ctrl+K, Painel, outras conversas da ficha). Sai do
+  // endereço depois de usado, para o mesmo pedido abrir de novo depois do ESC.
+  const pedida = parametros.get('conversa');
+  useEffect(() => {
+    if (!pedida) return;
+    setAbertaId(pedida);
+    setParametros((p) => { p.delete('conversa'); return p; }, { replace: true });
+  }, [pedida, setParametros]);
   const [conectar, setConectar] = useState(false);
   // O relógio de espera da lista anda sozinho: a cada minuto redesenha só quem espera.
   const [minuto, setMinuto] = useState(0);
@@ -343,6 +353,31 @@ export default function Atendimento() {
     return () => window.removeEventListener('keydown', aoTeclar);
   }, []);
 
+  // J e K andam pela lista em qualquer lugar fora de um campo de texto; as setas só com
+  // o foco na lista, para não tirar a rolagem das mensagens (pacote 2, 26/11/2026).
+  const colunaDaLista = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const aoTeclar = (e: globalThis.KeyboardEvent) => {
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+      const seta = e.key === 'ArrowDown' || e.key === 'ArrowUp';
+      const letra = e.key === 'j' || e.key === 'k';
+      if (!seta && !letra) return;
+      if (campoDeTexto(e.target) || janelaAberta()) return;
+      if (seta && !colunaDaLista.current?.contains(document.activeElement)) return;
+      const desce = e.key === 'ArrowDown' || e.key === 'j';
+      const i = lista.findIndex((c) => c.id === abertaId);
+      const proxima = lista[i < 0 ? 0 : i + (desce ? 1 : -1)];
+      if (!proxima) return;
+      e.preventDefault();
+      setAbertaId(proxima.id);
+      const item = colunaDaLista.current?.querySelector<HTMLElement>(`[data-conversa="${proxima.id}"]`);
+      item?.scrollIntoView({ block: 'nearest' });
+      if (seta) item?.focus();
+    };
+    window.addEventListener('keydown', aoTeclar);
+    return () => window.removeEventListener('keydown', aoTeclar);
+  }, [lista, abertaId]);
+
   // Número digitado que não tem conversa: dá para iniciar por aqui, como no WhatsApp.
   const numeroNovo = busca.replace(/\D/g, '').length >= 10 && lista.length === 0 && !buscando;
   const opcoesDeUnidade = unidade !== TODAS ? [unidade] : unidades;
@@ -414,7 +449,7 @@ export default function Atendimento() {
     <MainLayout fullBleed>
       <div className="flex h-screen">
         {/* Fila */}
-        <aside className="w-[380px] shrink-0 border-r border-border bg-card flex flex-col">
+        <aside ref={colunaDaLista} className="w-[380px] shrink-0 border-r border-border bg-card flex flex-col">
           <div className="px-4 pt-5 pb-3 space-y-3 border-b border-border">
             <div className="flex items-center justify-between">
               <h1 className="text-xl font-bold text-foreground">Atendimento</h1>

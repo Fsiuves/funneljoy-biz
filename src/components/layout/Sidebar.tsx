@@ -18,7 +18,9 @@ import {
   Monitor,
   BadgeCheck,
   BookOpen,
+  Search,
 } from 'lucide-react';
+import { abrirBusca } from '@/lib/atalhos';
 import { TrocarSenhaDialog } from '@/components/auth/TrocarSenhaDialog';
 import { rotuloDeLogin } from '@/lib/usuario';
 import { toast } from 'sonner';
@@ -141,6 +143,12 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        {/* A mesma busca do Ctrl+K (pacote 2, 26/11/2026), à vista para quem não usa atalho. */}
+        <button type="button" onClick={abrirBusca} className="sidebar-item w-full text-left" title="Buscar paciente ou conversa">
+          <Search className="w-5 h-5" />
+          <span>Buscar</span>
+          <kbd className="ml-auto rounded border border-sidebar-border px-1.5 py-0.5 font-mono text-[10px] opacity-70">Ctrl K</kbd>
+        </button>
         {itens.map(item => {
           const isActive = location.pathname === item.path;
           const contador = item.path === '/atendimento' ? esperando : 0;

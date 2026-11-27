@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ArrowLeft, Loader2, Maximize } from 'lucide-react';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenant } from '@/hooks/useTenant';
@@ -29,6 +30,18 @@ interface Unidade {
 }
 
 const maiuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
+/** Os números que abrem a lista das conversas que eles contam (crm.painel_lista, 55-painel-lista.sql). */
+type TipoLista = 'esperando' | 'atrasados' | 'paradas' | 'sem_responsavel' | 'novas_hoje';
+const TITULO_LISTA: Record<TipoLista, string> = {
+  esperando: 'Esperando resposta',
+  atrasados: 'Esperando além do prazo',
+  paradas: 'Conversas paradas há mais de um dia',
+  sem_responsavel: 'Sem responsável',
+  novas_hoje: 'Conversas novas hoje',
+};
+interface ItemLista { conversa_id: string; nome: string; quando: string | null; responsavel: string | null }
+type Abrir = (tipo: TipoLista) => void;
 
 function espera(desde: string, agora: number) {
   const min = Math.max(0, Math.round((agora - new Date(desde).getTime()) / 60_000));
@@ -71,6 +84,8 @@ export default function Painel() {
 
   const unidades = data?.unidades ?? [];
   const logoUrl = tenant?.system_logo_url || tenant?.logo_url;
+  // Na TV ninguém clica; no computador, cada número abre a lista do lado.
+  const [lista, setLista] = useState<{ unidade: string; tipo: TipoLista } | null>(null);
 
   return (
     <div className="min-h-screen bg-sidebar text-sidebar-foreground px-8 py-5 flex flex-col gap-5">
@@ -103,7 +118,9 @@ export default function Painel() {
       )}
 
       <div className={`grid gap-6 flex-1 ${unidades.length > 1 ? 'xl:grid-cols-2' : ''}`}>
-        {unidades.map((u) => <Coluna key={u.unidade} u={u} agora={agora} />)}
+        {unidades.map((u) => (
+          <Coluna key={u.unidade} u={u} agora={agora} abrir={(tipo) => setLista({ unidade: u.unidade, tipo })} />
+        ))}
       </div>
 
       {dataUpdatedAt > 0 && (
@@ -111,11 +128,93 @@ export default function Painel() {
           Atualiza sozinho a cada 30 segundos · última às {format(dataUpdatedAt, 'HH:mm:ss')}
         </p>
       )}
+
+      <ListaDoNumero
+        lista={lista}
+        agora={agora}
+        limite={unidades.find((u) => u.unidade === lista?.unidade)?.limite_minutos ?? 15}
+        aoFechar={() => setLista(null)}
+        aoAbrirConversa={(id) => navigate(`/atendimento?conversa=${id}`)}
+      />
     </div>
   );
 }
 
-function Coluna({ u, agora }: { u: Unidade; agora: number }) {
+function ListaDoNumero({ lista, agora, limite, aoFechar, aoAbrirConversa }: {
+  lista: { unidade: string; tipo: TipoLista } | null;
+  agora: number;
+  limite: number;
+  aoFechar: () => void;
+  aoAbrirConversa: (id: string) => void;
+}) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['painel-lista', lista?.unidade, lista?.tipo],
+    enabled: !!lista,
+    refetchInterval: 30_000,
+    queryFn: async () => {
+      // painel_lista não está nos tipos gerados do Lovable.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc('painel_lista', { _unidade: lista!.unidade, _tipo: lista!.tipo });
+      if (error) throw error;
+      return data as { total: number; itens: ItemLista[] };
+    },
+  });
+  const ehEspera = !!lista && ['esperando', 'atrasados', 'paradas'].includes(lista.tipo);
+  const itens = data?.itens ?? [];
+
+  const quando = (i: ItemLista) => {
+    if (!i.quando) return '';
+    if (ehEspera) return `há ${espera(i.quando, agora)}`;
+    if (lista?.tipo === 'novas_hoje') return `chegou às ${format(new Date(i.quando), 'HH:mm')}`;
+    return `última mensagem ${format(new Date(i.quando), "dd/MM 'às' HH:mm")}`;
+  };
+
+  return (
+    <Sheet open={!!lista} onOpenChange={(aberta) => { if (!aberta) aoFechar(); }}>
+      <SheetContent className="w-full sm:max-w-md flex flex-col gap-4">
+        <SheetHeader>
+          <SheetTitle>{lista ? TITULO_LISTA[lista.tipo] : ''}</SheetTitle>
+          <SheetDescription>
+            {lista?.unidade}
+            {data ? ` · ${data.total} ${data.total === 1 ? 'conversa' : 'conversas'}` : ''}
+            {' · '}clique para abrir no Atendimento
+          </SheetDescription>
+        </SheetHeader>
+        <div className="flex-1 overflow-y-auto -mx-2">
+          {isLoading && <Loader2 className="w-6 h-6 animate-spin text-primary mx-auto mt-10" />}
+          {isError && <p className="px-2 text-sm text-destructive">Não foi possível carregar a lista.</p>}
+          {data && itens.length === 0 && <p className="px-2 text-sm text-muted-foreground">Nenhuma conversa agora.</p>}
+          {itens.map((i) => {
+            const atrasado = ehEspera && !!i.quando && agora - new Date(i.quando).getTime() > limite * 60_000;
+            return (
+              <button
+                key={i.conversa_id}
+                type="button"
+                onClick={() => aoAbrirConversa(i.conversa_id)}
+                className="w-full text-left flex items-center gap-3 rounded-md px-2 py-2 hover:bg-muted"
+              >
+                <span className="flex-1 min-w-0">
+                  <span className="block truncate text-sm font-medium text-foreground">{i.nome}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{i.responsavel ?? 'sem responsável'}</span>
+                </span>
+                <span className={`shrink-0 text-xs tabular-nums ${atrasado ? 'text-destructive font-semibold' : 'text-muted-foreground'}`}>
+                  {quando(i)}
+                </span>
+              </button>
+            );
+          })}
+          {data && data.total > itens.length && (
+            <p className="px-2 pt-2 text-xs text-muted-foreground">
+              Mostrando {itens.length} de {data.total}. As outras estão no Atendimento.
+            </p>
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function Coluna({ u, agora, abrir }: { u: Unidade; agora: number; abrir: Abrir }) {
   const noPrazo = u.respondidas_hoje ? Math.round((u.no_prazo_hoje / u.respondidas_hoje) * 100) : null;
   const ag = u.avaliacoes;
   const contar = (f: (a: Unidade['avaliacoes'][number]) => boolean) => ag.filter(f).length;
@@ -130,10 +229,12 @@ function Coluna({ u, agora }: { u: Unidade; agora: number }) {
           rotulo="Esperando resposta"
           valor={u.esperando}
           alerta={u.esperando_atrasados > 0}
+          abrir={() => abrir('esperando')}
           extra={u.esperando_atrasados > 0 ? `${u.esperando_atrasados} há mais de ${u.limite_minutos} min` : 'ninguém atrasado'}
+          abrirExtra={u.esperando_atrasados > 0 ? () => abrir('atrasados') : undefined}
         />
-        <Bloco rotulo="Sem responsável" valor={u.sem_responsavel} extra="conversas abertas" />
-        <Bloco rotulo="Conversas novas hoje" valor={u.novas_hoje} />
+        <Bloco rotulo="Sem responsável" valor={u.sem_responsavel} extra="conversas abertas" abrir={() => abrir('sem_responsavel')} />
+        <Bloco rotulo="Conversas novas hoje" valor={u.novas_hoje} abrir={() => abrir('novas_hoje')} />
         <Bloco
           rotulo="Tempo de resposta hoje"
           valor={u.mediana_minutos === null ? '-' : `${Math.round(u.mediana_minutos)} min`}
@@ -189,21 +290,44 @@ function Coluna({ u, agora }: { u: Unidade; agora: number }) {
           </div>
         )}
         {u.paradas > 0 && (
-          <p className="pt-2 text-sm opacity-50">
+          <button type="button" onClick={() => abrir('paradas')} className="pt-2 text-left text-sm opacity-50 hover:opacity-100 hover:underline">
             Mais {u.paradas} {u.paradas === 1 ? 'conversa parada' : 'conversas paradas'} há mais de um dia: responda ou resolva no Atendimento.
-          </p>
+          </button>
         )}
       </div>
     </section>
   );
 }
 
-function Bloco({ rotulo, valor, extra, alerta = false }: { rotulo: string; valor: number | string; extra?: string; alerta?: boolean }) {
+function Bloco({ rotulo, valor, extra, alerta = false, abrir, abrirExtra }: {
+  rotulo: string; valor: number | string; extra?: string; alerta?: boolean;
+  /** Clicar no número abre a lista das conversas que ele conta. */
+  abrir?: () => void;
+  abrirExtra?: () => void;
+}) {
+  const clicavel = !!abrir && typeof valor === 'number' && valor > 0;
   return (
     <div className={`rounded-xl p-4 ${alerta ? 'bg-red-500/15 ring-1 ring-red-400/40' : 'bg-white/5'}`}>
       <p className="text-sm opacity-70">{rotulo}</p>
-      <p className={`text-[2.75rem] leading-tight font-semibold tabular-nums ${alerta ? 'text-red-300' : ''}`}>{valor}</p>
-      {extra && <p className={`text-sm mt-1 ${alerta ? 'text-red-200' : 'opacity-60'}`}>{extra}</p>}
+      {clicavel ? (
+        <button
+          type="button"
+          onClick={abrir}
+          title="Ver a lista"
+          className={`block text-[2.75rem] leading-tight font-semibold tabular-nums rounded-md hover:underline decoration-2 underline-offset-4 ${alerta ? 'text-red-300' : ''}`}
+        >
+          {valor}
+        </button>
+      ) : (
+        <p className={`text-[2.75rem] leading-tight font-semibold tabular-nums ${alerta ? 'text-red-300' : ''}`}>{valor}</p>
+      )}
+      {extra && (abrirExtra ? (
+        <button type="button" onClick={abrirExtra} className={`block text-left text-sm mt-1 hover:underline ${alerta ? 'text-red-200' : 'opacity-60'}`}>
+          {extra}
+        </button>
+      ) : (
+        <p className={`text-sm mt-1 ${alerta ? 'text-red-200' : 'opacity-60'}`}>{extra}</p>
+      ))}
     </div>
   );
 }

@@ -1,13 +1,12 @@
 import { Fragment, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { format, isToday, isYesterday, differenceInCalendarDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  CheckCircle2, RotateCcw, Send, Zap, Loader2, UserPlus, ExternalLink,
-  Image as ImageIcon, Mic, Video, FileText, MapPin, Contact, Smile, PhoneOff, CalendarPlus, CalendarCheck,
-  Paperclip, X, Square, Trash2, Megaphone, ListPlus, Pin, PinOff,
+  CheckCircle2, RotateCcw, Send, Zap, Loader2, UserPlus,
+  Image as ImageIcon, Mic, Video, FileText, MapPin, Contact, Smile, CalendarPlus, CalendarCheck,
+  Paperclip, X, Square, Trash2, Megaphone, ListPlus, Pin, PinOff, PanelRight,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -18,12 +17,13 @@ import { useMeuPapel } from '@/hooks/useEmpresa';
 import { useAuth } from '@/hooks/useAuth';
 import { QuickRepliesModal } from '@/components/settings/QuickRepliesModal';
 import { EtiquetasDaConversa } from '@/components/atendimento/Etiquetas';
+import { FichaPaciente, useFichaAberta } from '@/components/atendimento/FichaPaciente';
 import { Button } from '@/components/ui/button';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  abrirMidia, avisoTelefoneMarcado, momentoMensagem, preencherResposta, useMarcarTelefoneEquipe,
+  abrirMidia, momentoMensagem, preencherResposta,
   useAtualizarConversa, useEnviarMensagem, useMensagens, useRespostasProntas, useRegrasAtendimento, assinarMensagem,
   lerAnexo, LIMITE_ANEXO, adicionarPendente, confirmarPendente, removerPendente, buscarNovasMensagens,
   useAnunciosDeOrigem, origemDaConversa, nomeCurtoCampanha, useColocarNoFunil, mensagemDeErro,
@@ -615,7 +615,8 @@ function CaixaDeTexto({ conversa, eu }: { conversa: Conversa; eu: Pessoa | undef
               !anexo ? 'Escreva a mensagem. Digite / para as respostas prontas.'
                 : anexo.mimetype.startsWith('audio/') ? 'Texto (opcional, vai depois do áudio)' : 'Legenda (opcional)'
             }
-            className="flex-1 resize-none rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            // Texto de ajuda numa linha só: com a ficha aberta a caixa estreita e ele quebrava cortado.
+            className="flex-1 resize-none rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:whitespace-nowrap placeholder:overflow-hidden placeholder:text-ellipsis"
           />
           {texto.trim() || anexo ? (
             <Button type="button" onClick={mandar} className="shrink-0 h-10" title="Enviar">
@@ -646,8 +647,10 @@ interface PainelConversaProps {
 }
 
 export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
-  const navigate = useNavigate();
   const atualizar = useAtualizarConversa();
+  // Ficha do paciente ao lado da conversa (pacote 2, 26/11/2026). Conversa da equipe não tem.
+  const [fichaAberta, alternarFicha] = useFichaAberta();
+  const comFicha = !conversa.interna;
   const { data: mensagens = [], isLoading, isError, isFetching, refetch } = useMensagens(conversa);
   const fim = useRef<HTMLDivElement>(null);
 
@@ -656,7 +659,6 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
   // Quem gere respostas prontas (06-atendimento.sql) pode salvar uma mídia da conversa como resposta.
   const podeGuardar = papel === 'admin' || papel === 'manager' || papel === 'atendente';
   const [paraGuardar, setParaGuardar] = useState<AnexoResposta | null>(null);
-  const marcarEquipe = useMarcarTelefoneEquipe();
   const colocarNoFunil = useColocarNoFunil();
 
   // Agendar a avaliação sai da própria conversa: o paciente vai para "Agendou"
@@ -882,35 +884,16 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
             </Popover>
           )}
 
-          {!conversa.interna && (papel === 'admin' || papel === 'manager') && (
+          {/* "Ver no funil" e "É telefone da equipe" ficam na ficha, com o nome escrito. */}
+          {comFicha && (
             <Button
               size="icon"
-              variant="ghost"
-              title="É telefone da equipe (não é paciente)"
-              disabled={marcarEquipe.isPending}
-              onClick={() => {
-                if (!confirm(`Marcar ${nome} como telefone da equipe? A conversa ganha a etiqueta Equipe e deixa de contar como paciente.`)) return;
-                marcarEquipe.mutate(
-                  { telefone: conversa.phone, nome: conversa.contact_name },
-                  {
-                    onSuccess: (r) => toast.success(avisoTelefoneMarcado(r), { duration: 7000 }),
-                    onError: (e) => toast.error(e.message),
-                  },
-                );
-              }}
+              variant={fichaAberta ? 'secondary' : 'ghost'}
+              title={fichaAberta ? 'Fechar a ficha do paciente' : 'Ficha do paciente'}
+              aria-pressed={fichaAberta}
+              onClick={alternarFicha}
             >
-              <PhoneOff className="w-4 h-4" />
-            </Button>
-          )}
-
-          {!conversa.interna && (
-            <Button
-              size="icon"
-              variant="ghost"
-              title="Ver no funil"
-              onClick={() => navigate(`/leads?q=${encodeURIComponent(conversa.phone.slice(-8))}`)}
-            >
-              <ExternalLink className="w-4 h-4" />
+              <PanelRight className="w-4 h-4" />
             </Button>
           )}
         </div>
@@ -924,6 +907,9 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
         </div>
       )}
 
+      {/* O topo fica com a largura toda; a ficha divide só a área das mensagens. */}
+      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-w-0 flex-col">
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2 bg-muted/30">
         {isLoading && (
           <div className="flex justify-center py-10">
@@ -962,6 +948,9 @@ export function PainelConversa({ conversa, equipe, eu }: PainelConversaProps) {
       </div>
 
       <CaixaDeTexto conversa={conversa} eu={eu} />
+      </div>
+      {comFicha && fichaAberta && <FichaPaciente conversa={conversa} nome={nome} />}
+      </div>
 
       <QuickRepliesModal
         open={!!paraGuardar}
