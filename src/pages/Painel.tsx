@@ -49,6 +49,13 @@ function espera(desde: string, agora: number) {
   return `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')} min`;
 }
 
+/** Na lista das paradas a espera passa de um dia: "há 1308 h 55 min" vira "há 54 dias", como no Atendimento. */
+function esperaNaLista(desde: string, agora: number) {
+  const dias = Math.floor((agora - new Date(desde).getTime()) / 86_400_000);
+  if (dias < 1) return espera(desde, agora);
+  return dias === 1 ? '1 dia' : `${dias} dias`;
+}
+
 /**
  * Bloco 4: a tela para deixar aberta na recepção, num monitor ou TV. Mostra o
  * agora e o hoje de cada unidade (crm.painel_recepcao); a atendente vê só a
@@ -164,7 +171,7 @@ function ListaDoNumero({ lista, agora, limite, aoFechar, aoAbrirConversa }: {
 
   const quando = (i: ItemLista) => {
     if (!i.quando) return '';
-    if (ehEspera) return `há ${espera(i.quando, agora)}`;
+    if (ehEspera) return `há ${esperaNaLista(i.quando, agora)}`;
     if (lista?.tipo === 'novas_hoje') return `chegou às ${format(new Date(i.quando), 'HH:mm')}`;
     return `última mensagem ${format(new Date(i.quando), "dd/MM 'às' HH:mm")}`;
   };
